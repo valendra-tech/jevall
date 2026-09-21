@@ -32,8 +32,15 @@ jobs:
 
       - name: Free disk space
         run: |
+          df -h /
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/local/lib/node_modules /usr/local/share/powershell \
+            /usr/share/swift /usr/local/.ghcup /opt/microsoft \
+            /usr/share/miniconda /usr/lib/firefox
+          sudo apt-get clean
+          docker image prune -af || true
+          docker system prune -af || true
           df -h /
 
       - name: Set up Buildx

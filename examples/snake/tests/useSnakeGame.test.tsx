@@ -13,7 +13,7 @@ function decisionResponse(selected: string) {
         id: "move",
         type: "choice",
         selected,
-        probabilities: { up: 0.1, down: 0.1, left: 0.1, right: 0.7 },
+        probabilities: { turn_left: 0.15, straight: 0.7, turn_right: 0.15 },
       },
     ],
     usage: { latency_ms: 42 },
@@ -26,7 +26,7 @@ describe("useSnakeGame", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        new Response(JSON.stringify(decisionResponse("right")), {
+        new Response(JSON.stringify(decisionResponse("straight")), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -48,7 +48,7 @@ describe("useSnakeGame", () => {
           // A runaway loop must fail the test instead of exhausting memory.
           throw new Error("too many decisions for one game");
         }
-        return new Response(JSON.stringify(decisionResponse("right")), {
+        return new Response(JSON.stringify(decisionResponse("straight")), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });

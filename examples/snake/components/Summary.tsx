@@ -1,15 +1,13 @@
 "use client";
 
-import { outcomeLabel, type GameState } from "@/lib/game";
+import {
+  actionSymbol,
+  directionSymbol,
+  outcomeLabel,
+  type GameState,
+} from "@/lib/game";
 import { formatMs, formatPercent, latencyStats, averageSelectedProbability, survivedMoves } from "@/lib/stats";
 import type { HistoryEntry } from "@/lib/types";
-
-const ARROWS: Record<string, string> = {
-  up: "↑",
-  down: "↓",
-  left: "←",
-  right: "→",
-};
 
 const OUTCOME_STYLES: Record<string, string> = {
   moved: "text-zinc-500",
@@ -89,7 +87,10 @@ export function HistoryTable({ history }: { history: HistoryEntry[] }) {
               <tr key={entry.turn} className="border-t border-zinc-800/70">
                 <td className="px-4 py-1.5 text-zinc-600">{entry.turn}</td>
                 <td className="px-4 py-1.5 text-zinc-300">
-                  {ARROWS[entry.selected]} {entry.selected.toUpperCase()}
+                  {actionSymbol(entry.selected)} {entry.selected}{" "}
+                  <span className="text-zinc-600">
+                    ({directionSymbol(entry.applied)})
+                  </span>
                 </td>
                 <td className="px-4 py-1.5 text-zinc-400">
                   {formatPercent(entry.selectedProbability)}
@@ -146,8 +147,9 @@ export function GameOverPanel({
       </dl>
       {last ? (
         <p className="mt-3 font-mono text-xs text-zinc-300">
-          Final decision: {ARROWS[last.selected]} {last.selected.toUpperCase()}{" "}
-          {formatPercent(last.selectedProbability)}
+          Final decision: {actionSymbol(last.selected)} {last.selected}{" "}
+          {formatPercent(last.selectedProbability)} →{" "}
+          {directionSymbol(last.applied)} {last.applied.toUpperCase()}
         </p>
       ) : null}
       <p className="mt-1 font-mono text-xs text-rose-300">

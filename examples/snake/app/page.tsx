@@ -8,7 +8,7 @@ import { DebugPanel } from "@/components/DebugPanel";
 import { DecisionPanel, LatencyPanel } from "@/components/DecisionPanel";
 import { GameOverPanel, HistoryTable, MetricsBar } from "@/components/Summary";
 import { useSnakeGame } from "@/hooks/useSnakeGame";
-import { buildOptions } from "@/lib/options";
+import { buildRelativeOptions } from "@/lib/options";
 import { downloadRun, MODEL_ID } from "@/lib/export";
 
 export default function Page() {
@@ -37,8 +37,8 @@ export default function Page() {
 
   const last = history.at(-1) ?? null;
   const boardOptions = useMemo(
-    () => (mode === "ai" ? buildOptions(game) : []),
-    [game, mode],
+    () => (mode === "ai" ? buildRelativeOptions() : []),
+    [mode],
   );
 
   return (

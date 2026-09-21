@@ -26,13 +26,28 @@ export function formatPoint(point: { x: number; y: number }): string {
 
 export type StateTextOptions = {
   includeBoard?: boolean;
+  framing?: "relative" | "absolute";
 };
+
+const RELATIVE_ACTIONS_BLOCK = [
+  "Actions, relative to the current direction:",
+  "turn_left = rotate 90 degrees counter-clockwise, then advance one cell.",
+  "straight = keep the current direction, then advance one cell.",
+  "turn_right = rotate 90 degrees clockwise, then advance one cell.",
+  "Reversing is not a legal action and is never offered.",
+];
+
+const ABSOLUTE_ACTIONS_BLOCK = [
+  "Actions: move up, move down, move left or move right.",
+  "A move that reverses the current direction is not offered.",
+];
 
 export function buildStateText(
   state: GameState,
   options: StateTextOptions = {},
 ): string {
   const includeBoard = options.includeBoard ?? true;
+  const framing = options.framing ?? "relative";
   const head = state.snake[0];
   const body = state.snake.slice(1);
 
@@ -55,6 +70,8 @@ export function buildStateText(
     "Do not assume any information not represented in the state.",
     "",
     `Current direction: ${directionLabel(state.direction)}`,
+    "",
+    ...(framing === "relative" ? RELATIVE_ACTIONS_BLOCK : ABSOLUTE_ACTIONS_BLOCK),
     "",
     "Legend:",
     ". = empty",

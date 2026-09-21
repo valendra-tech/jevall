@@ -2,13 +2,7 @@
 
 import type { HistoryEntry, TurnDiagnostics } from "@/lib/types";
 import { formatMs, formatPercent } from "@/lib/stats";
-
-const ARROWS: Record<string, string> = {
-  up: "↑",
-  down: "↓",
-  left: "←",
-  right: "→",
-};
+import { actionSymbol, directionSymbol, resolveDirection } from "@/lib/game";
 
 type DecisionPanelProps = {
   mode: "ai" | "human";
@@ -92,11 +86,15 @@ export function DecisionPanel({
       <ul className="space-y-2">
         {ranked.map((option) => {
           const selected = option.id === last.selected;
+          const direction = resolveDirection(option.id, last.heading);
           return (
             <li key={option.id} className="space-y-1">
               <div className="flex items-baseline justify-between font-mono text-xs">
                 <span className={selected ? "text-emerald-300" : "text-zinc-400"}>
-                  {ARROWS[option.id]} {option.id.toUpperCase()}
+                  {actionSymbol(option.id)} {option.text}{" "}
+                  <span className="text-zinc-600">
+                    ({directionSymbol(direction)})
+                  </span>
                 </span>
                 <span className={selected ? "text-emerald-300" : "text-zinc-500"}>
                   {formatPercent(option.probability)}
@@ -118,7 +116,10 @@ export function DecisionPanel({
           Selected
         </span>
         <span className="font-mono text-sm text-emerald-300">
-          {ARROWS[last.selected]} {last.selected.toUpperCase()}
+          {actionSymbol(last.selected)} {last.selected}{" "}
+          <span className="text-zinc-500">
+            → {directionSymbol(last.applied)} {last.applied.toUpperCase()}
+          </span>
         </span>
       </div>
     </Panel>

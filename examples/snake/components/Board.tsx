@@ -2,22 +2,15 @@
 
 import { useMemo } from "react";
 
-import { keyOf, type GameState } from "@/lib/game";
+import {
+  actionSymbol,
+  directionSymbol,
+  keyOf,
+  nextPoint,
+  resolveDirection,
+  type GameState,
+} from "@/lib/game";
 import type { DecisionOption } from "@/lib/types";
-
-const ARROWS: Record<string, string> = {
-  up: "↑",
-  down: "↓",
-  left: "←",
-  right: "→",
-};
-
-const DELTAS: Record<string, { x: number; y: number }> = {
-  up: { x: 0, y: -1 },
-  down: { x: 0, y: 1 },
-  left: { x: -1, y: 0 },
-  right: { x: 1, y: 0 },
-};
 
 type BoardProps = {
   game: GameState;
@@ -57,12 +50,13 @@ export function Board({
     return rows;
   }, [game]);
 
+  // Each relative action resolved to the absolute cell it would occupy.
   const candidates = useMemo(() => {
     const head = game.snake[0];
     const occupied = new Set(game.snake.slice(1).map(keyOf));
     return options.map((option) => {
-      const delta = DELTAS[option.id];
-      const point = { x: head.x + delta.x, y: head.y + delta.y };
+      const direction = resolveDirection(option.id, game.direction);
+      const point = nextPoint(head, direction);
       const inside =
         point.x >= 0 &&
         point.y >= 0 &&
@@ -70,6 +64,7 @@ export function Board({
         point.y < game.size;
       return {
         id: option.id,
+        direction,
         point,
         inside,
         blocked: inside && occupied.has(keyOf(point)),
@@ -78,25 +73,29 @@ export function Board({
   }, [game, options]);
 
   const candidateByKey = useMemo(
-    () => new Map(candidates.filter((c) => c.inside).map((c) => [keyOf(c.point), c])),
+    () =>
+      new Map(
+        candidates.filter((c) => c.inside).map((c) => [keyOf(c.point), c]),
+      ),
     [candidates],
   );
 
   const cellPercent = 100 / game.size;
   const head = game.snake[0];
-  const labels = options
-    .filter((option) => probabilities && option.id in probabilities)
-    .map((option) => {
-      const delta = DELTAS[option.id];
-      const x = Math.min(
-        96,
-        Math.max(4, (head.x + 0.5 + delta.x * 0.62) * cellPercent),
-      );
-      const y = Math.min(
-        96,
-        Math.max(4, (head.y + 0.5 + delta.y * 0.62) * cellPercent),
-      );
-      return { id: option.id, x, y, value: probabilities?.[option.id] ?? 0 };
+  const labels = candidates
+    .filter((candidate) => probabilities && candidate.id in probabilities)
+    .map((candidate) => {
+      const dx = candidate.direction === "left" ? -1 : candidate.direction === "right" ? 1 : 0;
+      const dy = candidate.direction === "up" ? -1 : candidate.direction === "down" ? 1 : 0;
+      const x = Math.min(96, Math.max(4, (head.x + 0.5 + dx * 0.62) * cellPercent));
+      const y = Math.min(96, Math.max(4, (head.y + 0.5 + dy * 0.62) * cellPercent));
+      return {
+        id: candidate.id,
+        direction: candidate.direction,
+        x,
+        y,
+        value: probabilities?.[candidate.id] ?? 0,
+      };
     });
 
   return (
@@ -142,8 +141,9 @@ export function Board({
               key={label.id}
               className="absolute -translate-x-1/2 -translate-y-1/2 rounded border border-zinc-700 bg-zinc-950/85 px-1 py-0.5 font-mono text-[10px] text-zinc-300"
               style={{ left: `${label.x}%`, top: `${label.y}%` }}
+              title={`${actionSymbol(label.id)} ${label.id} → ${label.direction}`}
             >
-              {ARROWS[label.id]} {(label.value * 100).toFixed(0)}%
+              {directionSymbol(label.direction)} {(label.value * 100).toFixed(0)}%
             </span>
           ))}
         </div>

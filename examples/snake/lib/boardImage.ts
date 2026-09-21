@@ -58,24 +58,32 @@ export function renderBoardPng(state: GameState, cell = 26, border = 2): string 
 export type StatePartsOptions = {
   vision: boolean;
   imageDataUri: string | null;
+  framing?: "relative" | "absolute";
 };
 
 export function buildStateParts(
   state: GameState,
   options: StatePartsOptions,
 ): string | StatePart[] {
+  const framing = options.framing ?? "relative";
   if (!options.vision || !options.imageDataUri) {
-    return buildStateText(state, { includeBoard: true });
+    return buildStateText(state, { includeBoard: true, framing });
   }
   return [
-    { type: "text", text: buildStateText(state, { includeBoard: false }) },
+    {
+      type: "text",
+      text: buildStateText(state, { includeBoard: false, framing }),
+    },
     { type: "image", uri: options.imageDataUri },
   ];
 }
 
 export function statePartsLabel(
   state: GameState,
-  options: { vision: boolean },
+  options: { vision: boolean; framing?: "relative" | "absolute" },
 ): string {
-  return buildStateText(state, { includeBoard: !options.vision });
+  return buildStateText(state, {
+    includeBoard: !options.vision,
+    framing: options.framing ?? "relative",
+  });
 }

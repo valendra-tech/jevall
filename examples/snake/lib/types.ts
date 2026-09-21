@@ -1,5 +1,11 @@
 export type Direction = "up" | "down" | "left" | "right";
 
+export type RelativeAction = "turn_left" | "straight" | "turn_right";
+
+export type ActionId = RelativeAction | Direction;
+
+export type Framing = "relative" | "absolute";
+
 export type Point = { x: number; y: number };
 
 export type Speed = "slow" | "normal" | "fast";
@@ -10,7 +16,7 @@ export type Phase = "idle" | "running" | "thinking" | "paused" | "over";
 
 export type TurnOutcome = "moved" | "ate" | "wall" | "self" | "board-full";
 
-export type DecisionOption = { id: Direction; text: string };
+export type DecisionOption = { id: ActionId; text: string };
 
 export type StatePart =
   | { type: "text"; text: string }
@@ -30,7 +36,7 @@ export type DecisionPayload = {
 export type DecisionResult = {
   id: string;
   type: string;
-  selected: Direction;
+  selected: string;
   probabilities: Record<string, number>;
 };
 
@@ -54,7 +60,12 @@ export type HistoryEntry = {
   usedImage: boolean;
   options: DecisionOption[];
   rawResponse: DecisionResponse | null;
-  selected: Direction;
+  /** The action the model chose (relative or absolute, depending on framing). */
+  selected: ActionId;
+  /** Heading before the move, so relative actions can be resolved later. */
+  heading: Direction;
+  /** The absolute direction that action resolves to for this turn. */
+  applied: Direction;
   probabilities: Record<string, number>;
   selectedProbability: number | null;
   latencyMs: number;

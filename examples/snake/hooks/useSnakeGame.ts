@@ -5,8 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DecisionApiError, requestDecision, type DecisionOutcome } from "@/lib/api";
 import { buildStateParts, renderBoardPng, statePartsLabel } from "@/lib/boardImage";
 import { MODEL_ID } from "@/lib/export";
-import { createGame, isFatal, step, type GameState } from "@/lib/game";
-import { buildOptions, isOffered, MOVE_PROMPT } from "@/lib/options";
+import {
+  createGame,
+  isFatal,
+  resolveDirection,
+  step,
+  type GameState,
+} from "@/lib/game";
+import {
+  buildAbsoluteOptions,
+  buildRelativeOptions,
+  isOffered,
+  MOVE_PROMPT,
+} from "@/lib/options";
 import { createSingleFlight } from "@/lib/singleFlight";
 import { renderBoard } from "@/lib/stateText";
 import type {
@@ -93,7 +104,8 @@ export function useSnakeGame() {
       usedImage: boolean,
     ) => {
       const boardBefore = renderBoard(current);
-      const next = step(current, outcome.selected);
+      const applied = resolveDirection(outcome.selected, current.direction);
+      const next = step(current, applied);
       const entry: HistoryEntry = {
         turn: current.moves + 1,
         stateText,
@@ -101,6 +113,8 @@ export function useSnakeGame() {
         options,
         rawResponse: outcome.response,
         selected: outcome.selected,
+        heading: current.direction,
+        applied,
         probabilities: outcome.probabilities,
         selectedProbability:
           outcome.probabilities[outcome.selected] ?? null,
@@ -154,15 +168,20 @@ export function useSnakeGame() {
           return;
         }
 
-        const options = buildOptions(current);
+        const framing = visionRef.current ? "absolute" : "relative";
+        const options = visionRef.current
+          ? buildAbsoluteOptions(current.direction)
+          : buildRelativeOptions();
         const imageDataUri = visionRef.current ? renderBoardPng(current) : null;
         lastImage.current = imageDataUri;
         const state = buildStateParts(current, {
           vision: visionRef.current,
           imageDataUri,
+          framing,
         });
         const stateText = statePartsLabel(current, {
           vision: visionRef.current,
+          framing,
         });
         setThinking(true);
         try {

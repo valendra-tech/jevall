@@ -97,21 +97,14 @@ The delay is measured from the previous move, so real latency is never hidden.
 ## State sent to the model
 
 Generated every turn from the live board; no future information is included.
-The default is the ASCII board below. The `Send board as image` toggle replaces
-the ASCII grid with a PNG of the board (drawn with an offscreen canvas and sent
-as a `data:` URI), keeping the rules, legend and coordinates as text.
-
-Measured on six hand-built positions with the same question (safe-move picks,
-scored against the game rules):
-
-| State | Safe picks |
-| ----- | ---------- |
-| ASCII board (default) | 3/6 |
-| Board image | 5/6 |
+The default is the ASCII board with relative actions
+(`turn_left` / `straight` / `turn_right`). The `Send board as image` toggle
+replaces the ASCII grid with a PNG of the board (drawn with an offscreen canvas,
+sent as a `data:` URI) and switches the actions to absolute directions, because
+that is the combination that measured best (see *Known model behaviour*).
 
 The image costs about 20 ms of extra forward time (67 ms vs 47 ms p50 total on
-the public endpoint). Mixing both the ASCII board and the image scores worse
-than the image alone, so the toggle replaces the board instead of adding it.
+the public endpoint).
 
 ```
 SNAKE GAME
@@ -157,26 +150,47 @@ Choose the best next movement.
 
 ## Known model behaviour
 
-With `Qwen/Qwen3.5-4B` the demo shows a real failure mode: on a mid-edge the
-model is close to a coin flip between continuing into the wall and turning, and
-with the ASCII board it often continues until it dies. Verified with direct API
-probes:
+The demo shows a real failure mode of `Qwen/Qwen3.5-4B`: **it trades survival for
+food**. When the food lies in the direction of the wall it walks into the wall;
+when the food is elsewhere it avoids the wall. Verified with direct API probes on
+a fixed critical position (head at the right edge, wall ahead, body behind):
+five food layouts x three runs per variant.
 
-- Plain-language control ("the head is at the right edge, the food is above"):
-  correct at 0.93. The pipeline is not the problem.
-- Corner positions where only one move is safe: correct (0.67 / 0.75).
-- Mid-edge wall: `right` 0.50 vs `up` 0.44 with the ASCII board, and the same
-  direction gets 0.50 when it is option C but 0.04 when it is option A, which
-  shows a strong option-position bias.
-- Row/column indices, a bordered board, a "check each option" instruction, a
-  shorter preamble, removing the current-direction line, and board sizes from
-  6x6 to 12x12 do not fix it.
-- Sending the board as an image changes the behaviour: the model turns and
-  survives longer (a live run went ten moves, turning up, instead of six moves
-  straight into the right wall).
+| Board representation | Actions | Safe picks |
+| -------------------- | ------- | ---------- |
+| ASCII board | relative (`turn_left`/`straight`/`turn_right`) | **9/15** |
+| ASCII board | absolute (`up`/`down`/`right`) | 0/15 |
+| Board image | relative | 0/15 |
+| Board image | absolute | **9/15** |
 
-A larger model should judge the edge better; nothing in the demo corrects or
-filters the model's choice either way.
+Each combination is deterministic per position (ten runs give the same answer),
+so the framing decides which prior wins. The two winning combinations fail only
+on the layouts where the food sits behind the wall. Because of that interaction
+the demo couples them: text mode uses relative actions, image mode uses absolute
+actions. The mixed combinations are not reachable from the UI.
+
+Live runs, same model and endpoint:
+
+- Text mode: six moves straight into the right wall (`WALL COLLISION`).
+- Image mode: fourteen moves, turning left along the wall, then a wall collision.
+
+What does not help (all measured): row/column indices, a bordered board, a
+"check each option" instruction, a shorter preamble, removing the current
+direction line, explicit edge rules ("a move outside the grid ends the game",
+"cell (11,6) is the last of row 6"), and board sizes from 6x6 to 12x12. The
+prompt already states the rule; the model does not apply it when the food pulls
+the other way.
+
+The reference project [`siroccomask/snake-jev`](https://github.com/siroccomask/snake-jev)
+avoids this by not asking the model to read the board: the game computes numeric
+sensors (distance to wall/body, food offset) and asks nine yes/no questions
+(`turn_left`/`straight`/`turn_right` x `wall`/`body`/`food`), then composes the
+action in code among the answers it judged collision-free. That is more reliable
+but it precomputes perception and decides in code, which this demo deliberately
+does not do.
+
+Nothing in the demo corrects or filters the model's choice either way.
+
 
 ## API contract
 
@@ -226,11 +240,12 @@ selected probability.
 
 ## Why the options are dynamic
 
-Snake forbids a 180° reversal, so the reverse of the current direction is never
-sent as an option. Every other direction stays on the table, including ones
-that would hit a wall or the body: detecting danger is the model's job, not the
-browser's. If the model picks a fatal direction, the snake dies — that is the
-point of the demo.
+Snake forbids a 180° reversal. In relative mode the reversal is not even
+representable (`turn_left` / `straight` / `turn_right`); in absolute mode the
+reverse direction is filtered out. Every other option stays on the table,
+including ones that would hit a wall or the body: detecting danger is the
+model's job, not the browser's. If the model picks a fatal move, the snake dies
+— that is the point of the demo.
 
 ## Failure handling
 

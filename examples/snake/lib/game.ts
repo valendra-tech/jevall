@@ -1,6 +1,14 @@
-import type { Direction, Point, TurnOutcome } from "./types";
+import type { ActionId, Direction, Point, RelativeAction, TurnOutcome } from "./types";
 
 export const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
+export const RELATIVE_ACTIONS: RelativeAction[] = [
+  "turn_left",
+  "straight",
+  "turn_right",
+];
+
+/** Clockwise order used to rotate headings. */
+const CLOCKWISE: Direction[] = ["up", "right", "down", "left"];
 
 const DELTAS: Record<Direction, Point> = {
   up: { x: 0, y: -1 },
@@ -45,6 +53,80 @@ export function opposite(direction: Direction): Direction {
 export function availableDirections(direction: Direction): Direction[] {
   const reverse = opposite(direction);
   return DIRECTIONS.filter((candidate) => candidate !== reverse);
+}
+
+/**
+ * Map each relative action to an absolute direction for the current heading.
+ * `behind` is never an action, so the 180 degree reversal cannot be chosen.
+ */
+export function relativeDirections(
+  heading: Direction,
+): Record<RelativeAction, Direction> {
+  const index = CLOCKWISE.indexOf(heading);
+  return {
+    turn_left: CLOCKWISE[(index + 3) % 4],
+    straight: heading,
+    turn_right: CLOCKWISE[(index + 1) % 4],
+  };
+}
+
+export function absoluteOf(action: RelativeAction, heading: Direction): Direction {
+  return relativeDirections(heading)[action];
+}
+
+const RELATIVE_IDS: RelativeAction[] = ["turn_left", "straight", "turn_right"];
+
+export function isRelativeAction(id: ActionId): id is RelativeAction {
+  return (RELATIVE_IDS as string[]).includes(id);
+}
+
+/** Resolve either an absolute direction or a relative action to a direction. */
+export function resolveDirection(id: ActionId, heading: Direction): Direction {
+  return isRelativeAction(id) ? absoluteOf(id, heading) : id;
+}
+
+export function actionSymbol(id: ActionId): string {
+  return isRelativeAction(id) ? relativeSymbol(id) : directionSymbol(id);
+}
+
+export function nextPoint(point: Point, direction: Direction): Point {
+  const delta = DELTAS[direction];
+  return { x: point.x + delta.x, y: point.y + delta.y };
+}
+
+export function relativeLabel(action: RelativeAction): string {
+  switch (action) {
+    case "turn_left":
+      return "Turn left";
+    case "straight":
+      return "Keep going straight";
+    case "turn_right":
+      return "Turn right";
+  }
+}
+
+export function relativeSymbol(action: RelativeAction): string {
+  switch (action) {
+    case "turn_left":
+      return "↺";
+    case "straight":
+      return "↑";
+    case "turn_right":
+      return "↻";
+  }
+}
+
+export function directionSymbol(direction: Direction): string {
+  switch (direction) {
+    case "up":
+      return "↑";
+    case "down":
+      return "↓";
+    case "left":
+      return "←";
+    case "right":
+      return "→";
+  }
 }
 
 export function samePoint(left: Point, right: Point): boolean {

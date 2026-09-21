@@ -1,23 +1,45 @@
-import { availableDirections, type GameState } from "./game";
-import type { DecisionOption, Direction } from "./types";
-
-const LABELS: Record<Direction, string> = {
-  up: "Move up",
-  down: "Move down",
-  left: "Move left",
-  right: "Move right",
-};
+import {
+  RELATIVE_ACTIONS,
+  actionSymbol,
+  availableDirections,
+  isRelativeAction,
+  relativeLabel,
+} from "./game";
+import type { ActionId, DecisionOption, Direction } from "./types";
 
 export const MOVE_PROMPT =
   "What should the snake do next to survive and move toward the food?";
 
-export function buildOptions(state: Pick<GameState, "direction">): DecisionOption[] {
-  return availableDirections(state.direction).map((direction) => ({
-    id: direction,
-    text: LABELS[direction],
+/**
+ * Relative framing: turn_left / straight / turn_right. The 180 degree reversal
+ * is not representable, so it can never be offered.
+ */
+export function buildRelativeOptions(): DecisionOption[] {
+  return RELATIVE_ACTIONS.map((action) => ({
+    id: action,
+    text: relativeLabel(action),
   }));
 }
 
-export function isOffered(options: DecisionOption[], direction: Direction): boolean {
-  return options.some((option) => option.id === direction);
+/**
+ * Absolute framing: the three directions that do not reverse the heading.
+ * Colliding directions stay on the table.
+ */
+export function buildAbsoluteOptions(heading: Direction): DecisionOption[] {
+  return availableDirections(heading).map((direction) => ({
+    id: direction,
+    text: `Move ${direction}`,
+  }));
+}
+
+export function optionSymbol(id: ActionId): string {
+  return actionSymbol(id);
+}
+
+export function optionText(id: ActionId): string {
+  return isRelativeAction(id) ? relativeLabel(id) : `Move ${id}`;
+}
+
+export function isOffered(options: DecisionOption[], action: string): boolean {
+  return options.some((option) => option.id === action);
 }

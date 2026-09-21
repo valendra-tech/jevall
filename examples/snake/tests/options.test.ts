@@ -1,22 +1,47 @@
-import { buildOptions, isOffered, MOVE_PROMPT } from "@/lib/options";
+import {
+  buildAbsoluteOptions,
+  buildRelativeOptions,
+  isOffered,
+  MOVE_PROMPT,
+} from "@/lib/options";
 
-describe("buildOptions", () => {
-  it("offers the current direction and both turns, never the reversal", () => {
-    const options = buildOptions({ direction: "right" });
+describe("buildRelativeOptions", () => {
+  it("offers the three relative actions", () => {
+    const options = buildRelativeOptions();
 
-    expect(options.map((option) => option.id)).toEqual(["up", "down", "right"]);
-    expect(options.map((option) => option.text)).toEqual([
-      "Move up",
-      "Move down",
-      "Move right",
+    expect(options.map((option) => option.id)).toEqual([
+      "turn_left",
+      "straight",
+      "turn_right",
     ]);
-    expect(isOffered(options, "left")).toBe(false);
+    expect(options.map((option) => option.text)).toEqual([
+      "Turn left",
+      "Keep going straight",
+      "Turn right",
+    ]);
   });
 
-  it("keeps options that would collide", () => {
-    const options = buildOptions({ direction: "up" });
+  it("cannot offer the reversal because it is not an action", () => {
+    const options = buildRelativeOptions();
 
-    expect(options.map((option) => option.id)).toEqual(["up", "left", "right"]);
+    expect(isOffered(options, "turn_left")).toBe(true);
+    expect(isOffered(options, "behind")).toBe(false);
+    expect(isOffered(options, "up")).toBe(false);
+  });
+});
+
+describe("buildAbsoluteOptions", () => {
+  it("offers every direction except the reversal", () => {
+    expect(buildAbsoluteOptions("right").map((option) => option.id)).toEqual([
+      "up",
+      "down",
+      "right",
+    ]);
+    expect(buildAbsoluteOptions("up").map((option) => option.id)).toEqual([
+      "up",
+      "left",
+      "right",
+    ]);
   });
 });
 

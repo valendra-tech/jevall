@@ -24,6 +24,7 @@ dev = [
 ]
 qwen = [
     "av>=15,<16",
+    "flash-linear-attention>=0.5,<1",
     "pillow>=10,<12",
     "torch==2.8.0",
     "torchvision==0.23.0",

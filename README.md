@@ -70,6 +70,29 @@ JEV_GATE_DEVICE=cuda \
 uv run uvicorn jev_gate.server:app --host 127.0.0.1 --port 8000
 ```
 
+## Micro-batching
+
+The server merges concurrent requests into a single adapter forward pass. It is
+enabled by default and controlled by environment variables:
+
+- `JEV_GATE_BATCH_ENABLED` (`1`): set to `0` to bypass the batcher.
+- `JEV_GATE_BATCH_WINDOW_MS` (`8`): collection window per batch.
+- `JEV_GATE_BATCH_MAX_ROWS` (`32`): maximum question rows per batch.
+- `JEV_GATE_REQUEST_TIMEOUT_MS` (`10000`): per-request queue deadline.
+
+Each response reports `queue_ms`, `forward_ms`, `scoring_ms`, and `batch_rows`
+in `diagnostics`.
+
+Install `flash-linear-attention` (included in the `qwen` extra) on the GPU host:
+without it the 24 Qwen 3.5 GatedDeltaNet layers fall back to a slow fp32 torch
+scan and latency grows roughly fivefold.
+
+Measure latency with:
+
+```bash
+uv run python scripts/benchmark.py --levels 1,4,8,16 --requests 32
+```
+
 ## API
 
 `state` can be a text string for the simple case:

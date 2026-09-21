@@ -79,6 +79,9 @@ enabled by default and controlled by environment variables:
 - `JEV_GATE_BATCH_WINDOW_MS` (`8`): collection window per batch.
 - `JEV_GATE_BATCH_MAX_ROWS` (`32`): maximum question rows per batch.
 - `JEV_GATE_REQUEST_TIMEOUT_MS` (`10000`): per-request queue deadline.
+- `JEV_GATE_WARMUP` (`1`): compile backend kernels at startup.
+- `JEV_GATE_WARMUP_ROWS` (`1,2,4,8,16,32`): row buckets compiled at startup;
+  runtime batches are padded to these shapes so kernels never recompile.
 
 Each response reports `queue_ms`, `forward_ms`, `scoring_ms`, and `batch_rows`
 in `diagnostics`.

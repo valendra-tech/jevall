@@ -64,7 +64,20 @@ uv run serve --model Qwen/Qwen3.5-4B --device cuda --host 127.0.0.1 --port 8000
 ```
 
 Without `--model` it uses `JEV_GATE_MODEL`, and with neither it serves the
-deterministic demo adapter. The env-var form still works:
+deterministic demo adapter.
+
+On a GPU host, sync the Qwen extra first, or keep the environment untouched with
+`--no-sync` when the extra is already installed:
+
+```bash
+uv sync --extra qwen
+uv run serve --model Qwen/Qwen3.5-4B
+
+# or, without re-syncing:
+uv run --no-sync serve --model Qwen/Qwen3.5-4B
+```
+
+The env-var form still works:
 
 ```bash
 JEV_GATE_MODEL=Qwen/Qwen3.5-4B \

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -24,7 +26,7 @@ from jev_gate.schemas import (
 
 def create_app(engine: DecisionEngine | None = None) -> FastAPI:
     """Create an app with an injectable decision engine."""
-    decision_engine = engine or DecisionEngine((DemoAdapter(),))
+    decision_engine = engine or _default_engine()
     api = FastAPI(
         title="Jev Gate",
         version="0.1.0",
@@ -70,6 +72,17 @@ def create_app(engine: DecisionEngine | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail=str(error)) from error
 
     return api
+
+
+def _default_engine() -> DecisionEngine:
+    model_id = os.getenv("JEV_GATE_MODEL", "demo")
+    if model_id == "demo":
+        return DecisionEngine((DemoAdapter(),))
+
+    from jev_gate.adapters.qwen35 import Qwen35Adapter
+
+    device = os.getenv("JEV_GATE_DEVICE", "cuda")
+    return DecisionEngine((Qwen35Adapter(model_id=model_id, device=device),))
 
 
 app = create_app()

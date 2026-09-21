@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from jev_gate.core import BackendUnavailableError
 from jev_gate.schemas import (
@@ -189,13 +190,26 @@ class Qwen35Adapter:
             if isinstance(part, TextPart):
                 content.append({"type": "text", "text": part.text})
             elif isinstance(part, ImagePart):
-                content.append({"type": "image", "url": part.uri})
+                content.append(
+                    {"type": "image", "url": self._media_source(part.uri)}
+                )
             elif isinstance(part, VideoPart):
-                content.append({"type": "video", "url": part.uri})
+                content.append(
+                    {"type": "video", "url": self._media_source(part.uri)}
+                )
             else:
                 raise TypeError(f"unsupported content part: {type(part).__name__}")
         content.append({"type": "text", "text": self._question_prompt(question)})
         return [{"role": "user", "content": content}]
+
+    @staticmethod
+    def _media_source(uri: str) -> str:
+        parsed = urlparse(uri)
+        if parsed.scheme != "file":
+            return uri
+        if parsed.netloc not in ("", "localhost"):
+            raise ValueError("file URI host must be empty or localhost")
+        return unquote(parsed.path)
 
     @staticmethod
     def _question_prompt(question: Question) -> str:
@@ -240,8 +254,8 @@ class Qwen35Adapter:
                 tokenize=True,
                 return_dict=True,
                 return_tensors="pt",
-                padding=True,
                 enable_thinking=False,
+                processor_kwargs={"padding": True},
             )
             inputs = self._move_inputs(inputs)
             attention_mask = inputs["attention_mask"]

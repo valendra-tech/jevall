@@ -88,7 +88,7 @@ def test_qwen_adapter_builds_native_content_parts_without_flattening_media():
     }
     assert content[1] == {
         "type": "image",
-        "url": "file:///tmp/screenshot.png",
+        "url": "/tmp/screenshot.png",
     }
     assert content[-1]["type"] == "text"
     assert "Which team should handle this?" in content[-1]["text"]
@@ -318,6 +318,7 @@ def test_qwen_decide_disables_thinking_and_uses_last_unpadded_token(monkeypatch)
         call["enable_thinking"] is False
         for call in processor.calls
     )
+    assert processor.calls[1]["processor_kwargs"] == {"padding": True}
 
 
 def test_qwen_decide_scores_inside_inference_mode(monkeypatch):

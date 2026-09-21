@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from time import perf_counter
 
@@ -79,9 +80,13 @@ def create_app(
         try:
             adapter, normalized = decision_engine.resolve_request(request)
             if active_batcher is None:
+                decisions_result = await asyncio.to_thread(
+                    adapter.decide,
+                    normalized,
+                )
                 return decision_engine.build_response(
                     request,
-                    adapter.decide(normalized),
+                    decisions_result,
                     diagnostics={
                         "adapter": adapter.model_info.backend,
                         "probability_source": "adapter",

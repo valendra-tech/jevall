@@ -19,15 +19,15 @@ class FakeTokenizer:
 
     def __call__(self, text, *, add_special_tokens=False):
         assert add_special_tokens is False
-        if text.startswith("team") and " ANSWER:" in text:
-            if text.endswith((" A", " B")):
-                return {"input_ids": [902, self.ids[text[-2:]]]}
-            return {"input_ids": [902]}
         if text.startswith("rendered-"):
             base = 900 if text.startswith("rendered-q1") else 901
             if text.endswith(("A", "B")):
                 return {"input_ids": [base, self.ids[f" {text[-1]}"]]}
             return {"input_ids": [base]}
+        if " ANSWER:" in text:
+            if text.endswith((" A", " B")):
+                return {"input_ids": [902, self.ids[text[-2:]]]}
+            return {"input_ids": [902]}
         return {"input_ids": [self.ids[text]]}
 
     def decode(self, token_ids, *, clean_up_tokenization_spaces=False):
@@ -96,6 +96,31 @@ def test_qwen_adapter_builds_native_content_parts_without_flattening_media():
 
 def test_label_resolution_uses_existing_single_tokens_only():
     assert resolve_label_token_ids(FakeTokenizer(), 3) == (101, 102, 103)
+
+
+def test_label_resolution_only_tokenizes_the_prefix_tail():
+    seen = []
+
+    class TailTokenizer:
+        def __call__(self, text, *, add_special_tokens=False):
+            assert add_special_tokens is False
+            seen.append(text)
+            if text.endswith((" A", " B")):
+                return {"input_ids": [77, 101 if text.endswith(" A") else 102]}
+            return {"input_ids": [77]}
+
+        def decode(self, token_ids, *, clean_up_tokenization_spaces=False):
+            assert clean_up_tokenization_spaces is False
+            return {101: " A", 102: " B"}[token_ids[0]]
+
+    long_prefix = "rendered prompt " * 400 + "ANSWER:"
+
+    assert resolve_label_token_ids(TailTokenizer(), 2, prefix=long_prefix) == (
+        101,
+        102,
+    )
+    assert seen
+    assert all(len(text) <= 160 for text in seen)
 
 
 class FakeTensor:
@@ -185,6 +210,10 @@ class FakeTorch:
     @staticmethod
     def matmul(left, right):
         return left @ right
+
+    @staticmethod
+    def stack(tensors):
+        return FakeTensor([list(tensor.data) for tensor in tensors])
 
     @staticmethod
     def softmax(tensor, dim):
@@ -384,3 +413,96 @@ def test_qwen_decide_maps_invalid_backbone_output_to_backend_unavailable(monkeyp
 
     with pytest.raises(BackendUnavailableError, match="unexpected hidden"):
         adapter.decide(request())
+
+
+class CountingProcessor(RecordingProcessor):
+    def apply_chat_template(self, conversations, **kwargs):
+        self.calls.append(kwargs)
+        if kwargs["tokenize"] is False:
+            return [f"rendered-{index}" for index in range(len(conversations))]
+        rows = len(conversations)
+        return FakeBatch(
+            input_ids=FakeTensor([[1, 2, 3] for _ in range(rows)]),
+            attention_mask=FakeTensor([[1, 1, 1] for _ in range(rows)]),
+            pixel_values=self.pixel_values,
+        )
+
+
+class CountingBackbone:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        rows = kwargs["input_ids"].shape[0]
+        return SimpleNamespace(
+            last_hidden_state=FakeTensor(
+                [[[0.0, 0.0], [0.0, 0.0], [1.0, 0.0]] for _ in range(rows)]
+            )
+        )
+
+
+class CountingModel:
+    def __init__(self):
+        self.model = CountingBackbone()
+        weights = [[0.0, 0.0] for _ in range(103)]
+        weights[101] = [5.0, 0.0]
+        weights[102] = [0.0, 5.0]
+        self.output_embeddings = SimpleNamespace(weight=FakeTensor(weights))
+
+    def get_output_embeddings(self):
+        return self.output_embeddings
+
+
+def test_qwen_decide_batch_pads_rows_to_bucket(monkeypatch):
+    processor = CountingProcessor()
+    adapter = Qwen35Adapter(
+        model_id="Qwen/Qwen3.5-9B",
+        device="cpu",
+        model=CountingModel(),
+        processor=processor,
+    )
+    monkeypatch.setattr(qwen35, "_load_torch", lambda: FakeTorch)
+    base = request()
+    three_questions = base.model_copy(
+        update={
+            "questions": (
+                base.questions[0],
+                base.questions[0].model_copy(update={"id": "team-2"}),
+                base.questions[0].model_copy(update={"id": "team-3"}),
+            )
+        }
+    )
+
+    batch = adapter.decide_batch((three_questions,))
+
+    assert adapter.model.model.calls[0]["input_ids"].shape[0] == 4
+    assert [result.id for result in batch.decisions[0]] == [
+        "team",
+        "team-2",
+        "team-3",
+    ]
+    assert batch.rows == 3
+
+
+def test_qwen_warmup_drives_decide_batch_for_each_row_count(monkeypatch):
+    processor = RecordingProcessor()
+    adapter = Qwen35Adapter(
+        model_id="Qwen/Qwen3.5-9B",
+        device="cpu",
+        model=RecordingModel(),
+        processor=processor,
+    )
+    monkeypatch.setattr(qwen35, "_load_torch", lambda: FakeTorch)
+    counts = []
+    original = adapter.decide_batch
+
+    def spy(requests):
+        counts.append(len(requests[0].questions))
+        return original(requests)
+
+    monkeypatch.setattr(adapter, "decide_batch", spy)
+
+    adapter.warmup((2,))
+
+    assert counts == [2]

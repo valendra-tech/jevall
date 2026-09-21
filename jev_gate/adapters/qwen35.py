@@ -22,6 +22,37 @@ from jev_gate.schemas import (
     VideoPart,
 )
 
+_PREFIX_TAIL_CHARS = 64
+_WARMUP_ROW_COUNTS = (1, 2, 4, 8, 16, 32)
+_ROW_BUCKETS = _WARMUP_ROW_COUNTS
+
+
+def _bucket_rows(row_count: int) -> int:
+    for bucket in _ROW_BUCKETS:
+        if row_count <= bucket:
+            return bucket
+    return row_count
+
+
+def _warmup_request(question_count: int) -> DecisionRequest:
+    options = (
+        {"id": "alpha", "text": "Alpha"},
+        {"id": "beta", "text": "Beta"},
+    )
+    return DecisionRequest(
+        model="warmup",
+        state="Warmup state.",
+        questions=tuple(
+            ChoiceQuestion(
+                id=f"warmup-{index}",
+                type="choice",
+                prompt=f"Warmup question {index}?",
+                options=options,
+            )
+            for index in range(question_count)
+        ),
+    )
+
 
 def _load_torch():
     try:
@@ -45,6 +76,11 @@ def _token_ids(encoded: Any) -> tuple[int, ...]:
     return tuple(int(token_id) for token_id in encoded)
 
 
+def _prefix_tail(prefix: str) -> str:
+    """Keep only the boundary context that decides the appended label token."""
+    return prefix[-_PREFIX_TAIL_CHARS:]
+
+
 def resolve_label_token_ids(
     tokenizer: Any,
     count: int,
@@ -61,14 +97,15 @@ def resolve_label_token_ids(
         prefixes = (prefix,)
     elif prefixes is None:
         prefixes = ()
+    prefix_tails = tuple(_prefix_tail(current) for current in prefixes)
 
     token_ids = []
     for label in "ABCDE"[:count]:
-        if prefixes:
+        if prefix_tails:
             resolved = None
             for surface in (f" {label}", label):
                 candidate_ids = []
-                for current_prefix in prefixes:
+                for current_prefix in prefix_tails:
                     prefix_ids = _token_ids(
                         tokenizer(current_prefix, add_special_tokens=False)
                     )
@@ -256,10 +293,11 @@ class Qwen35Adapter:
             for question in request.questions:
                 conversations.append(self.build_conversation(request, question))
                 rows.append((request_index, question))
+        padded_conversations = self._pad_rows(conversations)
         try:
             forward_started = perf_counter()
             rendered_prompts = self.processor.apply_chat_template(
-                conversations,
+                padded_conversations,
                 add_generation_prompt=True,
                 tokenize=False,
                 enable_thinking=False,
@@ -267,7 +305,7 @@ class Qwen35Adapter:
             if isinstance(rendered_prompts, str):
                 rendered_prompts = [rendered_prompts]
             inputs = self.processor.apply_chat_template(
-                conversations,
+                padded_conversations,
                 add_generation_prompt=True,
                 tokenize=True,
                 return_dict=True,
@@ -302,7 +340,7 @@ class Qwen35Adapter:
                 raise BackendUnavailableError(
                     "Qwen backbone returned unexpected hidden states"
                 )
-            if hidden.shape[0] != len(rows):
+            if hidden.shape[0] != len(padded_conversations):
                 raise BackendUnavailableError(
                     "Qwen backbone batch size did not match question count"
                 )
@@ -313,7 +351,8 @@ class Qwen35Adapter:
                     "Qwen output embeddings have unexpected shape"
                 )
 
-            grouped: list[list[DecisionResult]] = [[] for _ in requests]
+            probability_rows = []
+            row_meta = []
             for row, (request_index, question) in enumerate(rows):
                 labels, keys = self._labels_and_keys(question)
                 try:
@@ -344,12 +383,19 @@ class Qwen35Adapter:
                         selected_hidden,
                     ).float()
                     probabilities = torch.softmax(candidate_logits.float(), dim=-1)
-                    selected_index = int(torch.argmax(probabilities).item())
-                    probability_values = probabilities.detach().cpu().tolist()
+                probability_rows.append(probabilities)
+                row_meta.append((request_index, question, keys))
+            with torch.inference_mode():
+                stacked = torch.stack(probability_rows)
+                selected_indices = torch.argmax(stacked, dim=-1).tolist()
+                probability_values = stacked.tolist()
+            grouped: list[list[DecisionResult]] = [[] for _ in requests]
+            for index, (request_index, question, keys) in enumerate(row_meta):
                 probability_map = {
-                    key: float(value) for key, value in zip(keys, probability_values)
+                    key: float(value)
+                    for key, value in zip(keys, probability_values[index])
                 }
-                selected = keys[selected_index]
+                selected = keys[selected_indices[index]]
                 if isinstance(question, NoulQuestion):
                     selected = selected == "true"
                 grouped[request_index].append(
@@ -373,6 +419,19 @@ class Qwen35Adapter:
             raise BackendUnavailableError(
                 f"Qwen decision scoring failed for {self.model_id!r}"
             ) from error
+
+    def warmup(self, row_counts: tuple[int, ...] = _WARMUP_ROW_COUNTS) -> None:
+        """Compile backend kernels for the batch shapes used at runtime."""
+        for row_count in row_counts:
+            self.decide_batch((_warmup_request(row_count),))
+
+    @staticmethod
+    def _pad_rows(conversations: list[Any]) -> list[Any]:
+        bucket = _bucket_rows(len(conversations))
+        if bucket <= len(conversations):
+            return conversations
+        padding = conversations[-1]
+        return conversations + [padding] * (bucket - len(conversations))
 
     def _move_inputs(self, inputs: Any) -> Any:
         mover = getattr(inputs, "to", None)

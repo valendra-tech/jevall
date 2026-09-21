@@ -173,3 +173,25 @@ def test_batcher_isolates_a_failing_row():
 def test_batcher_rejects_invalid_max_rows():
     with pytest.raises(ValueError):
         MicroBatcher(max_rows=0)
+
+
+def test_batcher_run_exclusive_serializes_with_batches():
+    adapter = RecordingAdapter(delay=0.05)
+    batcher = MicroBatcher(window_ms=10, max_rows=8)
+    observed = []
+
+    def probe():
+        observed.append(adapter.max_concurrent)
+        return "done"
+
+    async def run():
+        outcome = asyncio.create_task(batcher.submit(adapter, request("team")))
+        await asyncio.sleep(0.01)
+        result = await batcher.run_exclusive(probe)
+        return await outcome, result
+
+    outcome, result = asyncio.run(run())
+
+    assert result == "done"
+    assert observed == [0]
+    assert outcome.decisions[0].id == "team"

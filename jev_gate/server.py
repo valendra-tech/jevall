@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager
 from time import perf_counter
 
 from fastapi import FastAPI, HTTPException, Request
@@ -26,6 +28,13 @@ from jev_gate.schemas import (
     ModelListResponse,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _warmup_rows() -> tuple[int, ...]:
+    raw = os.getenv("JEV_GATE_WARMUP_ROWS", "1,2,4,8,16,32")
+    return tuple(int(item) for item in raw.split(",") if item.strip())
+
 
 def create_app(
     engine: DecisionEngine | None = None,
@@ -41,10 +50,25 @@ def create_app(
                 max_rows=int(os.getenv("JEV_GATE_BATCH_MAX_ROWS", "32")),
                 timeout_ms=float(os.getenv("JEV_GATE_REQUEST_TIMEOUT_MS", "10000")),
             )
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        if active_batcher is not None and os.getenv("JEV_GATE_WARMUP", "1") != "0":
+            for model in decision_engine.models():
+                warmup = getattr(decision_engine.resolve(model.id), "warmup", None)
+                if warmup is None:
+                    continue
+                try:
+                    await active_batcher.run_exclusive(warmup, _warmup_rows())
+                except Exception:
+                    logger.warning("backend warmup failed", exc_info=True)
+        yield
+
     api = FastAPI(
         title="Jev Gate",
         version="0.1.0",
         description="An unofficial Jev-compatible typed-decision gateway.",
+        lifespan=lifespan,
     )
 
     @api.exception_handler(RequestValidationError)

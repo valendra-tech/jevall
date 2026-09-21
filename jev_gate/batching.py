@@ -82,6 +82,11 @@ class MicroBatcher:
         self._queue.put_nowait(job)
         return await job.future
 
+    async def run_exclusive(self, work, *args):
+        """Run blocking backend work on the single GPU thread."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, work, *args)
+
     def _ensure_worker(self) -> None:
         if self._worker is None or self._worker.done():
             self._worker = asyncio.get_running_loop().create_task(self._run())

@@ -21,11 +21,11 @@ class FakeTokenizer:
         assert add_special_tokens is False
         if text.startswith("rendered-"):
             base = 900 if text.startswith("rendered-q1") else 901
-            if text.endswith(("A", "B")):
+            if text.endswith(("A", "B", "C")):
                 return {"input_ids": [base, self.ids[f" {text[-1]}"]]}
             return {"input_ids": [base]}
         if " ANSWER:" in text:
-            if text.endswith((" A", " B")):
+            if text.endswith((" A", " B", " C")):
                 return {"input_ids": [902, self.ids[text[-2:]]]}
             return {"input_ids": [902]}
         return {"input_ids": [self.ids[text]]}
@@ -299,9 +299,10 @@ class RecordingBackbone:
 class RecordingModel:
     def __init__(self):
         self.model = RecordingBackbone()
-        weights = [[0.0, 0.0] for _ in range(103)]
+        weights = [[0.0, 0.0] for _ in range(104)]
         weights[101] = [5.0, 0.0]
         weights[102] = [0.0, 5.0]
+        weights[103] = [-5.0, -5.0]
         self.output_embeddings = SimpleNamespace(weight=FakeTensor(weights))
 
     def get_output_embeddings(self):
@@ -483,6 +484,41 @@ def test_qwen_decide_batch_pads_rows_to_bucket(monkeypatch):
         "team-3",
     ]
     assert batch.rows == 3
+
+
+def test_qwen_decide_handles_questions_with_different_option_counts(monkeypatch):
+    processor = RecordingProcessor()
+    adapter = Qwen35Adapter(
+        model_id="Qwen/Qwen3.5-9B",
+        device="cpu",
+        model=RecordingModel(),
+        processor=processor,
+    )
+    monkeypatch.setattr(qwen35, "_load_torch", lambda: FakeTorch)
+    base = request()
+    mixed = base.model_copy(
+        update={
+            "questions": (
+                base.questions[0],
+                ChoiceQuestion(
+                    id="team-2",
+                    type="choice",
+                    prompt="Which team should handle this?",
+                    options=(
+                        {"id": "technical", "text": "Technical support"},
+                        {"id": "billing", "text": "Billing support"},
+                        {"id": "other", "text": "Other"},
+                    ),
+                ),
+            )
+        }
+    )
+
+    batch = adapter.decide_batch((mixed,))
+
+    assert [result.id for result in batch.decisions[0]] == ["team", "team-2"]
+    assert batch.decisions[0][0].selected == "technical"
+    assert batch.decisions[0][1].selected == "billing"
 
 
 def test_qwen_warmup_drives_decide_batch_for_each_row_count(monkeypatch):

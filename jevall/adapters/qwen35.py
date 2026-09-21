@@ -414,9 +414,22 @@ class Qwen35Adapter:
                 probability_rows.append(probabilities)
                 row_meta.append((request_index, question, keys))
             with torch.inference_mode():
-                stacked = torch.stack(probability_rows)
-                selected_indices = torch.argmax(stacked, dim=-1).tolist()
-                probability_values = stacked.tolist()
+                groups: dict[int, list[int]] = {}
+                for index, (_, _, keys) in enumerate(row_meta):
+                    groups.setdefault(len(keys), []).append(index)
+                selected_indices = [0] * len(row_meta)
+                probability_values: list[list[float]] = [
+                    [] for _ in row_meta
+                ]
+                for indices in groups.values():
+                    stacked = torch.stack(
+                        [probability_rows[index] for index in indices]
+                    )
+                    group_selected = torch.argmax(stacked, dim=-1).tolist()
+                    group_values = stacked.tolist()
+                    for position, index in enumerate(indices):
+                        selected_indices[index] = group_selected[position]
+                        probability_values[index] = group_values[position]
             grouped: list[list[DecisionResult]] = [[] for _ in requests]
             for index, (request_index, question, keys) in enumerate(row_meta):
                 probability_map = {

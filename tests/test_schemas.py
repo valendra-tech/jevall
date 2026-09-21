@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from jev_gate.schemas import (
+from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
     ImagePart,

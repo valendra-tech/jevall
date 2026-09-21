@@ -3,7 +3,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "jev-gate"
+name = "jevall"
 version = "0.1.0"
 description = "A small, unofficial Jev-compatible typed-decision gateway"
 readme = "README.md"
@@ -32,11 +32,11 @@ qwen = [
 ]
 
 [project.scripts]
-jev-gate = "jev_gate.__main__:main"
-serve = "jev_gate.cli:serve"
+jevall = "jevall.__main__:main"
+serve = "jevall.cli:serve"
 
 [tool.hatch.build.targets.wheel]
-packages = ["jev_gate"]
+packages = ["jevall"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

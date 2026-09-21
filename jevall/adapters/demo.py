@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from jev_gate.adapters.base import AdapterBatch
-from jev_gate.schemas import (
+from jevall.adapters.base import AdapterBatch
+from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
     DecisionResult,

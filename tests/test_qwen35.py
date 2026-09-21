@@ -3,10 +3,10 @@ from types import SimpleNamespace
 
 import pytest
 
-import jev_gate.adapters.qwen35 as qwen35
-from jev_gate.adapters.qwen35 import Qwen35Adapter, resolve_label_token_ids
-from jev_gate.core import BackendUnavailableError
-from jev_gate.schemas import (
+import jevall.adapters.qwen35 as qwen35
+from jevall.adapters.qwen35 import Qwen35Adapter, resolve_label_token_ids
+from jevall.core import BackendUnavailableError
+from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
     ImagePart,

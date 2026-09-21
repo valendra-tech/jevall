@@ -9,9 +9,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from time import perf_counter
 
-from jev_gate.adapters.base import DecisionAdapter
-from jev_gate.core import BackendUnavailableError
-from jev_gate.schemas import DecisionRequest, DecisionResult
+from jevall.adapters.base import DecisionAdapter
+from jevall.core import BackendUnavailableError
+from jevall.schemas import DecisionRequest, DecisionResult
 
 
 class RequestTimeoutError(BackendUnavailableError):
@@ -58,7 +58,7 @@ class MicroBatcher:
         self._clock = clock
         self._executor = executor or ThreadPoolExecutor(
             max_workers=1,
-            thread_name_prefix="jev-gate-gpu",
+            thread_name_prefix="jevall-gpu",
         )
         self._queue: asyncio.Queue[_Job] = asyncio.Queue()
         self._pending: deque[_Job] = deque()

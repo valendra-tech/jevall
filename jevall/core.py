@@ -7,8 +7,8 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 
-from jev_gate.adapters.base import DecisionAdapter
-from jev_gate.schemas import (
+from jevall.adapters.base import DecisionAdapter
+from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
     DecisionResponse,

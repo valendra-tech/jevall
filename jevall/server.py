@@ -13,15 +13,15 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from jev_gate.adapters.demo import DemoAdapter
-from jev_gate.batching import MicroBatcher
-from jev_gate.core import (
+from jevall.adapters.demo import DemoAdapter
+from jevall.batching import MicroBatcher
+from jevall.core import (
     BackendUnavailableError,
     DecisionEngine,
     UnknownModelError,
     UnsupportedCapabilityError,
 )
-from jev_gate.schemas import (
+from jevall.schemas import (
     DecisionRequest,
     DecisionResponse,
     HealthResponse,
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def _warmup_rows() -> tuple[int, ...]:
-    raw = os.getenv("JEV_GATE_WARMUP_ROWS", "1,2,4,8,16,32")
+    raw = os.getenv("JEVALL_WARMUP_ROWS", "1,2,4,8,16,32")
     return tuple(int(item) for item in raw.split(",") if item.strip())
 
 
@@ -44,16 +44,16 @@ def create_app(
     decision_engine = engine or _default_engine()
     active_batcher = batcher
     if active_batcher is None and engine is None:
-        if os.getenv("JEV_GATE_BATCH_ENABLED", "1") != "0":
+        if os.getenv("JEVALL_BATCH_ENABLED", "1") != "0":
             active_batcher = MicroBatcher(
-                window_ms=float(os.getenv("JEV_GATE_BATCH_WINDOW_MS", "8")),
-                max_rows=int(os.getenv("JEV_GATE_BATCH_MAX_ROWS", "32")),
-                timeout_ms=float(os.getenv("JEV_GATE_REQUEST_TIMEOUT_MS", "10000")),
+                window_ms=float(os.getenv("JEVALL_BATCH_WINDOW_MS", "8")),
+                max_rows=int(os.getenv("JEVALL_BATCH_MAX_ROWS", "32")),
+                timeout_ms=float(os.getenv("JEVALL_REQUEST_TIMEOUT_MS", "10000")),
             )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        if active_batcher is not None and os.getenv("JEV_GATE_WARMUP", "1") != "0":
+        if active_batcher is not None and os.getenv("JEVALL_WARMUP", "1") != "0":
             for model in decision_engine.models():
                 warmup = getattr(decision_engine.resolve(model.id), "warmup", None)
                 if warmup is None:
@@ -142,13 +142,13 @@ def create_app(
 
 
 def _default_engine() -> DecisionEngine:
-    model_id = os.getenv("JEV_GATE_MODEL", "demo")
+    model_id = os.getenv("JEVALL_MODEL", "demo")
     if model_id == "demo":
         return DecisionEngine((DemoAdapter(),))
 
-    from jev_gate.adapters.qwen35 import Qwen35Adapter
+    from jevall.adapters.qwen35 import Qwen35Adapter
 
-    device = os.getenv("JEV_GATE_DEVICE", "cuda")
+    device = os.getenv("JEVALL_DEVICE", "cuda")
     return DecisionEngine((Qwen35Adapter(model_id=model_id, device=device),))
 
 

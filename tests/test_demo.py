@@ -1,5 +1,5 @@
-from jev_gate.adapters.demo import DemoAdapter
-from jev_gate.schemas import DecisionRequest
+from jevall.adapters.demo import DemoAdapter
+from jevall.schemas import DecisionRequest
 
 
 def request(question_id: str = "team") -> DecisionRequest:

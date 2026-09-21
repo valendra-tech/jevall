@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-from jev_gate.adapters.base import AdapterBatch
-from jev_gate.batching import MicroBatcher, RequestTimeoutError
-from jev_gate.core import BackendUnavailableError
-from jev_gate.schemas import DecisionRequest, DecisionResult
+from jevall.adapters.base import AdapterBatch
+from jevall.batching import MicroBatcher, RequestTimeoutError
+from jevall.core import BackendUnavailableError
+from jevall.schemas import DecisionRequest, DecisionResult
 
 
 def request(question_id: str = "team") -> DecisionRequest:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from jev_gate.schemas import DecisionRequest, DecisionResult, ModelInfo
+from jevall.schemas import DecisionRequest, DecisionResult, ModelInfo
 
 
 @dataclass(frozen=True)

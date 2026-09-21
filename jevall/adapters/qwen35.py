@@ -7,9 +7,9 @@ from time import perf_counter
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from jev_gate.adapters.base import AdapterBatch
-from jev_gate.core import BackendUnavailableError
-from jev_gate.schemas import (
+from jevall.adapters.base import AdapterBatch
+from jevall.core import BackendUnavailableError
+from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
     DecisionResult,

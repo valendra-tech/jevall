@@ -2,11 +2,11 @@ import asyncio
 
 import httpx
 
-from jev_gate.adapters.demo import DemoAdapter
-from jev_gate.batching import MicroBatcher
-from jev_gate.core import BackendUnavailableError, DecisionEngine
-from jev_gate.schemas import ModelInfo
-from jev_gate.server import create_app
+from jevall.adapters.demo import DemoAdapter
+from jevall.batching import MicroBatcher
+from jevall.core import BackendUnavailableError, DecisionEngine
+from jevall.schemas import ModelInfo
+from jevall.server import create_app
 
 
 def app(engine=None):

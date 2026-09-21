@@ -20,11 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        help="model ID to serve, for example org/model (default: JEV_GATE_MODEL)",
+        help="model ID to serve, for example org/model (default: JEVALL_MODEL)",
     )
     parser.add_argument(
         "--device",
-        help="torch device for the model backend (default: JEV_GATE_DEVICE)",
+        help="torch device for the model backend (default: JEVALL_DEVICE)",
     )
     parser.add_argument("--host", default=DEFAULT_HOST, help="bind host")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="bind port")
@@ -38,17 +38,17 @@ def serve(
 ) -> None:
     """Run the FastAPI app with the selected model."""
     args = build_parser().parse_args(argv)
-    os.environ["JEV_GATE_MODEL"] = (
-        args.model or os.getenv("JEV_GATE_MODEL") or DEFAULT_MODEL
+    os.environ["JEVALL_MODEL"] = (
+        args.model or os.getenv("JEVALL_MODEL") or DEFAULT_MODEL
     )
-    os.environ["JEV_GATE_DEVICE"] = (
-        args.device or os.getenv("JEV_GATE_DEVICE") or DEFAULT_DEVICE
+    os.environ["JEVALL_DEVICE"] = (
+        args.device or os.getenv("JEVALL_DEVICE") or DEFAULT_DEVICE
     )
     if run is None:
         import uvicorn
 
         run = uvicorn.run
-    run("jev_gate.server:app", host=args.host, port=args.port)
+    run("jevall.server:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

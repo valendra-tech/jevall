@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Latency benchmark for the jev-gate decisions endpoint."""
+"""Latency benchmark for the jevall decisions endpoint."""
 
 from __future__ import annotations
 

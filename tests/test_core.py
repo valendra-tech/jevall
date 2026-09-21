@@ -1,13 +1,13 @@
 import pytest
 
-from jev_gate.adapters.demo import DemoAdapter
-from jev_gate.core import (
+from jevall.adapters.demo import DemoAdapter
+from jevall.core import (
     AdapterContractError,
     DecisionEngine,
     UnknownModelError,
     UnsupportedCapabilityError,
 )
-from jev_gate.schemas import (
+from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
     DecisionResult,

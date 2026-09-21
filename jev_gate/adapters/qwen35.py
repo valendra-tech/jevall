@@ -226,12 +226,11 @@ class Qwen35Adapter:
             for question in request.questions
         ]
         try:
-            processor_kwargs = {"enable_thinking": False}
             rendered_prompts = self.processor.apply_chat_template(
                 conversations,
                 add_generation_prompt=True,
                 tokenize=False,
-                processor_kwargs=processor_kwargs,
+                enable_thinking=False,
             )
             if isinstance(rendered_prompts, str):
                 rendered_prompts = [rendered_prompts]
@@ -242,7 +241,7 @@ class Qwen35Adapter:
                 return_dict=True,
                 return_tensors="pt",
                 padding=True,
-                processor_kwargs=processor_kwargs,
+                enable_thinking=False,
             )
             inputs = self._move_inputs(inputs)
             attention_mask = inputs["attention_mask"]

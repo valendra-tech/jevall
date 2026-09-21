@@ -315,7 +315,7 @@ def test_qwen_decide_disables_thinking_and_uses_last_unpadded_token(monkeypatch)
     assert len(adapter.model.model.calls) == 1
     assert adapter.model.model.calls[0]["pixel_values"] is processor.pixel_values
     assert all(
-        call["processor_kwargs"] == {"enable_thinking": False}
+        call["enable_thinking"] is False
         for call in processor.calls
     )
 

@@ -3,6 +3,7 @@ import asyncio
 import httpx
 
 from jev_gate.adapters.demo import DemoAdapter
+from jev_gate.batching import MicroBatcher
 from jev_gate.core import BackendUnavailableError, DecisionEngine
 from jev_gate.schemas import ModelInfo
 from jev_gate.server import create_app
@@ -186,6 +187,74 @@ def test_unavailable_backends_return_service_unavailable():
                 }
             ],
         },
+    )
+
+    assert response.status_code == 503
+
+
+async def send(app_instance, method: str, path: str, **kwargs) -> httpx.Response:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app_instance),
+        base_url="http://test",
+    ) as client:
+        return await client.request(method, path, **kwargs)
+
+
+def batched_app(batcher, engine=None):
+    return create_app(engine or DecisionEngine((DemoAdapter(),)), batcher=batcher)
+
+
+def batched_payload(question_id: str = "team"):
+    return {
+        "model": "demo",
+        "state": "A payment incident is under investigation.",
+        "questions": [
+            {
+                "id": question_id,
+                "type": "choice",
+                "prompt": "Which team should handle this?",
+                "options": [
+                    {"id": "technical", "text": "Technical support"},
+                    {"id": "billing", "text": "Billing support"},
+                ],
+            }
+        ],
+    }
+
+
+def test_batched_endpoint_serves_concurrent_requests():
+    batcher = MicroBatcher(window_ms=50, max_rows=8)
+    app_instance = batched_app(batcher)
+
+    async def send_two():
+        transport = httpx.ASGITransport(app=app_instance)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+        ) as client:
+            return await asyncio.gather(
+                client.post("/v1/decisions", json=batched_payload("team")),
+                client.post("/v1/decisions", json=batched_payload("team-2")),
+            )
+
+    first, second = asyncio.run(send_two())
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["decisions"][0]["id"] == "team"
+    assert second.json()["decisions"][0]["id"] == "team-2"
+    assert first.json()["diagnostics"]["batch_rows"] == 2
+    assert "queue_ms" in first.json()["diagnostics"]
+    assert "forward_ms" in first.json()["diagnostics"]
+    assert "scoring_ms" in first.json()["diagnostics"]
+
+
+def test_batched_endpoint_maps_timeouts_to_service_unavailable():
+    batcher = MicroBatcher(window_ms=50, timeout_ms=1)
+    app_instance = batched_app(batcher)
+
+    response = asyncio.run(
+        send(app_instance, "POST", "/v1/decisions", json=batched_payload())
     )
 
     assert response.status_code == 503

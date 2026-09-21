@@ -10,6 +10,7 @@ from jev_gate.core import (
 from jev_gate.schemas import (
     ChoiceQuestion,
     DecisionRequest,
+    DecisionResult,
     ImagePart,
     ModelInfo,
     NoulQuestion,
@@ -136,3 +137,40 @@ def test_engine_rejects_invalid_adapter_results():
 
     with pytest.raises(AdapterContractError, match="question ID"):
         DecisionEngine((InvalidAdapter(),)).decide(invalid_request)
+
+
+def test_resolve_request_normalizes_state_and_returns_adapter():
+    engine = DecisionEngine((DemoAdapter(),))
+    base_request = request()
+
+    adapter, normalized = engine.resolve_request(base_request)
+
+    assert adapter.model_info.id == "demo"
+    assert isinstance(normalized.state, list)
+    assert normalized.state[0].type == "text"
+
+
+def test_build_response_uses_supplied_diagnostics_and_latency():
+    engine = DecisionEngine((DemoAdapter(),))
+    base_request = request().model_copy(
+        update={"questions": (request().questions[0],)}
+    )
+    decisions = [
+        DecisionResult(
+            id="team",
+            type="choice",
+            selected="technical",
+            probabilities={"technical": 1.0, "billing": 0.0},
+        )
+    ]
+
+    response = engine.build_response(
+        base_request,
+        decisions,
+        diagnostics={"adapter": "demo", "queue_ms": 1.5},
+        latency_ms=12.5,
+    )
+
+    assert response.usage.latency_ms == 12.5
+    assert response.diagnostics == {"adapter": "demo", "queue_ms": 1.5}
+    assert response.decisions[0].selected == "technical"

@@ -59,26 +59,45 @@ class DecisionEngine:
         return tuple(adapter.model_info for adapter in self._adapters.values())
 
     def decide(self, request: DecisionRequest) -> DecisionResponse:
+        adapter, normalized_request = self.resolve_request(request)
+        started = perf_counter()
+        decisions = adapter.decide(normalized_request)
+        return self.build_response(
+            request,
+            decisions,
+            diagnostics={
+                "adapter": adapter.model_info.backend,
+                "probability_source": "adapter",
+            },
+            latency_ms=(perf_counter() - started) * 1000,
+        )
+
+    def resolve_request(
+        self,
+        request: DecisionRequest,
+    ) -> tuple[DecisionAdapter, DecisionRequest]:
         adapter = self.resolve(request.model)
         normalized_request = request.model_copy(
             update={"state": request.normalized_state()}
         )
         self._validate_capabilities(normalized_request, adapter)
-        started = perf_counter()
-        decisions = self._validate_results(
-            normalized_request,
-            adapter.decide(normalized_request),
-        )
-        elapsed_ms = (perf_counter() - started) * 1000
+        return adapter, normalized_request
+
+    def build_response(
+        self,
+        request: DecisionRequest,
+        decisions,
+        *,
+        diagnostics: dict[str, object],
+        latency_ms: float,
+    ) -> DecisionResponse:
+        validated = self._validate_results(request, decisions)
         return DecisionResponse(
             id=f"dec_{uuid4().hex}",
             model=request.model,
-            decisions=tuple(decisions),
-            usage=Usage(latency_ms=elapsed_ms),
-            diagnostics={
-                "adapter": adapter.model_info.backend,
-                "probability_source": "adapter",
-            },
+            decisions=validated,
+            usage=Usage(latency_ms=latency_ms),
+            diagnostics=diagnostics,
         )
 
     @staticmethod

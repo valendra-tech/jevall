@@ -56,6 +56,7 @@ jev_gate/
   adapters/
     base.py        adapter protocol and capability metadata
     demo.py        deterministic local adapter for examples and tests
+    qwen35.py      Qwen 3.5 Transformers adapter with native media
   server.py        FastAPI application and routes
 ```
 
@@ -66,7 +67,9 @@ native multimodal processor and will reuse the independent-question batching and
 restricted candidate projection proven in the research probe.
 
 The demo adapter is deliberately deterministic and is not presented as an LLM.
-It makes the repository runnable and testable without downloading a model.
+It makes the repository runnable and testable without downloading a model. The
+Qwen adapter is an optional runtime dependency and performs one independent
+batched model call per request, projecting only existing label tokens.
 
 ## Error Semantics
 

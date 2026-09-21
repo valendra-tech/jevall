@@ -18,9 +18,12 @@ The initial vertical includes:
 - an adapter protocol with a deterministic demo adapter;
 - a FastAPI server with `/v1/decisions`, `/v1/models`, and `/health`;
 - a `uv` development workflow and tests without model downloads.
+- an optional Qwen 3.5 Transformers adapter for `Qwen/Qwen3.5-9B`.
 
-The demo adapter is not an LLM. It makes the complete API runnable before the
-Qwen 3.5 9B adapter and other providers are added.
+The demo adapter is not an LLM. It makes the complete API runnable without
+downloading a model. The Qwen adapter uses one independent batched backbone
+forward for the request, manual projection over restricted existing-token
+labels, and Qwen's native text/image/video processor inputs without generation.
 
 This is not the official Jev implementation. It is an unofficial,
 Jev-compatible contract and gateway.
@@ -30,12 +33,21 @@ Jev-compatible contract and gateway.
 - Python 3.12 or newer
 - [uv](https://docs.astral.sh/uv/)
 
+The pinned Qwen runtime uses PyTorch 2.8 wheels and therefore requires Python
+3.12 or 3.13 on the GPU host.
+
 ## Development
 
 ```bash
 uv sync --extra dev
 uv run pytest -q
 uv run ruff check .
+```
+
+Install the Qwen runtime only on a compatible GPU host:
+
+```bash
+uv sync --extra dev --extra qwen
 ```
 
 Start the local server:
@@ -48,6 +60,14 @@ Or use the installed command:
 
 ```bash
 uv run jev-gate
+```
+
+To start with Qwen 3.5 9B instead of the demo adapter:
+
+```bash
+JEV_GATE_MODEL=Qwen/Qwen3.5-9B \
+JEV_GATE_DEVICE=cuda \
+uv run uvicorn jev_gate.server:app --host 127.0.0.1 --port 8000
 ```
 
 ## API

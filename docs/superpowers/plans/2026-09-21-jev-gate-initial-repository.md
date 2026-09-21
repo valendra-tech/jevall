@@ -4,9 +4,9 @@
 
 **Goal:** Build the first private, English-only Jev-compatible typed-decision gateway with a `uv` project, FastAPI server, adapter protocol, and deterministic test backend.
 
-**Architecture:** Keep Pydantic schemas independent from the adapter protocol. The core resolves a model adapter and returns typed decisions without inspecting media; FastAPI only transports the public contract. The demo adapter provides a dependency-free model substitute so the full API is testable before the Qwen adapter is added.
+**Architecture:** Keep Pydantic schemas independent from the adapter protocol. The core resolves a model adapter and returns typed decisions without inspecting media; FastAPI only transports the public contract. The demo adapter provides a dependency-free model substitute, while an optional Qwen 3.5 adapter handles native multimodal inference on a GPU host.
 
-**Tech Stack:** Python 3.12+, `uv`, Pydantic 2, FastAPI, Uvicorn, pytest, HTTPX, Ruff.
+**Tech Stack:** Python 3.12+, `uv`, Pydantic 2, FastAPI, Uvicorn, optional PyTorch/Transformers Qwen runtime, pytest, HTTPX, Ruff.
 
 ---
 
@@ -109,7 +109,36 @@ Create a FastAPI app factory accepting an engine, register `/health`, `/v1/model
 
 Run `uv run pytest tests/test_server.py -q` and `uv run python -c "from fastapi.testclient import TestClient; from jev_gate.server import app; print(TestClient(app).get('/health').json())"`. Expected: tests pass and the command prints `{'status': 'ok'}`.
 
-### Task 5: Add repository-level verification and publish the initial private commit
+### Task 5: Add the optional Qwen 3.5 9B adapter
+
+**Files:**
+- Create: `jev_gate/adapters/qwen35.py`
+- Create: `tests/test_qwen35.py`
+- Modify: `jev_gate/server.py`
+- Modify: `pyproject.toml`
+- Modify: `README.md`
+
+- [ ] **Step 1: Write tests for native content mapping and label resolution**
+
+Use fake tokenizer, model, and processor objects so tests do not download PyTorch or model weights. Verify that text/image/video content parts remain native conversation content, labels resolve to existing single tokens, and the adapter declares the Qwen model capabilities.
+
+- [ ] **Step 2: Run the focused tests and verify the expected import failure**
+
+Run `uv run pytest tests/test_qwen35.py -q`. Expected: collection fails because the adapter module does not yet exist.
+
+- [ ] **Step 3: Implement lazy Qwen loading and one-forward typed scoring**
+
+Add a `qwen` optional dependency group with PyTorch, Transformers, Pillow, and video decoding support. Load `Qwen/Qwen3.5-9B` only when `JEV_GATE_MODEL` is not `demo`; use `AutoProcessor.apply_chat_template` with native media parts, one padded batch call, and a restricted output-embedding projection over existing label tokens. Map the selected labels back to choice IDs, score levels, or the boolean Noul result.
+
+- [ ] **Step 4: Run local tests without the Qwen extra**
+
+Run `uv run pytest -q` and `uv run ruff check .`. Expected: all tests pass without importing `torch` or `transformers`.
+
+- [ ] **Step 5: Verify the real Qwen adapter on the RTX 5090 host**
+
+After confirming the host is an NVIDIA RTX 5090, run `uv sync --extra dev --extra qwen`, start with `JEV_GATE_MODEL=Qwen/Qwen3.5-9B JEV_GATE_DEVICE=cuda`, and verify `/health`, `/v1/models`, a text-only decision, and a native image request before keeping the service running.
+
+### Task 6: Add repository-level verification and publish the initial private commit
 
 **Files:**
 - Modify: `README.md`

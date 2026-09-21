@@ -56,7 +56,7 @@ class LogProgressBar(tqdm):
         now = time.monotonic()
         total = getattr(self, "total", None)
         current = float(getattr(self, "n", 0) or 0)
-        if self._last_n == current:
+        if current <= 0 or self._last_n == current:
             return
         finished = bool(total) and current >= float(total)
         if (

@@ -183,13 +183,14 @@ def load_qwen35(model_id: str, device: str, dtype: str = "auto"):
             "installed Transformers does not expose a Qwen 3.5 multimodal model"
         )
 
-    torch_dtype = getattr(torch, resolve_dtype(dtype, device))
+    dtype_name = resolve_dtype(dtype, device)
+    torch_dtype = getattr(torch, dtype_name)
     local_path = ensure_model(model_id)
     logger.info(
         "model.load id=%s device=%s dtype=%s path=%s",
         model_id,
         device,
-        torch_dtype,
+        dtype_name,
         local_path,
     )
     started = perf_counter()
@@ -210,7 +211,7 @@ def load_qwen35(model_id: str, device: str, dtype: str = "auto"):
         "model.loaded id=%s device=%s dtype=%s elapsed=%.1fs",
         model_id,
         device,
-        torch_dtype,
+        dtype_name,
         perf_counter() - started,
     )
     return model, processor

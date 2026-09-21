@@ -345,6 +345,34 @@ def test_qwen_decide_scores_inside_inference_mode(monkeypatch):
     assert results[0].selected == "technical"
 
 
+def test_qwen_decide_batch_uses_single_forward_for_multiple_requests(monkeypatch):
+    processor = RecordingProcessor()
+    adapter = Qwen35Adapter(
+        model_id="Qwen/Qwen3.5-9B",
+        device="cpu",
+        model=RecordingModel(),
+        processor=processor,
+    )
+    monkeypatch.setattr(qwen35, "_load_torch", lambda: FakeTorch)
+    base = request()
+    second = base.model_copy(
+        update={
+            "questions": (
+                base.questions[0].model_copy(update={"id": "team-2"}),
+            )
+        }
+    )
+
+    batch = adapter.decide_batch((base, second))
+
+    assert batch.rows == 2
+    assert len(adapter.model.model.calls) == 1
+    assert [result.selected for result in batch.decisions[0]] == ["technical"]
+    assert [result.selected for result in batch.decisions[1]] == ["billing"]
+    assert batch.forward_ms >= 0.0
+    assert batch.scoring_ms >= 0.0
+
+
 def test_qwen_decide_maps_invalid_backbone_output_to_backend_unavailable(monkeypatch):
     adapter = Qwen35Adapter(
         model_id="Qwen/Qwen3.5-9B",

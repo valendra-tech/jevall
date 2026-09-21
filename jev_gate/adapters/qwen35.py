@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from time import perf_counter
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from jev_gate.adapters.base import AdapterBatch
 from jev_gate.core import BackendUnavailableError
 from jev_gate.schemas import (
     ChoiceQuestion,
@@ -234,12 +236,28 @@ class Qwen35Adapter:
         )
 
     def decide(self, request: DecisionRequest) -> list[DecisionResult]:
+        return list(self.decide_batch((request,)).decisions[0])
+
+    def decide_batch(
+        self,
+        requests: tuple[DecisionRequest, ...],
+    ) -> AdapterBatch:
+        if not requests:
+            return AdapterBatch(
+                decisions=(),
+                rows=0,
+                forward_ms=0.0,
+                scoring_ms=0.0,
+            )
         torch = _load_torch()
-        conversations = [
-            self.build_conversation(request, question)
-            for question in request.questions
-        ]
+        conversations = []
+        rows: list[tuple[int, Question]] = []
+        for request_index, request in enumerate(requests):
+            for question in request.questions:
+                conversations.append(self.build_conversation(request, question))
+                rows.append((request_index, question))
         try:
+            forward_started = perf_counter()
             rendered_prompts = self.processor.apply_chat_template(
                 conversations,
                 add_generation_prompt=True,
@@ -269,6 +287,7 @@ class Qwen35Adapter:
                     return_dict=True,
                     use_cache=False,
                 )
+            forward_ms = (perf_counter() - forward_started) * 1000.0
         except BackendUnavailableError:
             raise
         except Exception as error:
@@ -276,13 +295,14 @@ class Qwen35Adapter:
                 f"Qwen inference failed for {self.model_id!r}"
             ) from error
 
+        scoring_started = perf_counter()
         try:
             hidden = outputs.last_hidden_state
             if getattr(hidden, "ndim", 0) != 3:
                 raise BackendUnavailableError(
                     "Qwen backbone returned unexpected hidden states"
                 )
-            if hidden.shape[0] != len(request.questions):
+            if hidden.shape[0] != len(rows):
                 raise BackendUnavailableError(
                     "Qwen backbone batch size did not match question count"
                 )
@@ -293,8 +313,8 @@ class Qwen35Adapter:
                     "Qwen output embeddings have unexpected shape"
                 )
 
-            results = []
-            for row, question in enumerate(request.questions):
+            grouped: list[list[DecisionResult]] = [[] for _ in requests]
+            for row, (request_index, question) in enumerate(rows):
                 labels, keys = self._labels_and_keys(question)
                 try:
                     token_ids = resolve_label_token_ids(
@@ -332,7 +352,7 @@ class Qwen35Adapter:
                 selected = keys[selected_index]
                 if isinstance(question, NoulQuestion):
                     selected = selected == "true"
-                results.append(
+                grouped[request_index].append(
                     DecisionResult(
                         id=question.id,
                         type=question.type,
@@ -340,7 +360,13 @@ class Qwen35Adapter:
                         probabilities=probability_map,
                     )
                 )
-            return results
+            scoring_ms = (perf_counter() - scoring_started) * 1000.0
+            return AdapterBatch(
+                decisions=tuple(tuple(results) for results in grouped),
+                rows=len(rows),
+                forward_ms=forward_ms,
+                scoring_ms=scoring_ms,
+            )
         except BackendUnavailableError:
             raise
         except Exception as error:

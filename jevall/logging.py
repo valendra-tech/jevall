@@ -6,6 +6,7 @@ import logging
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 DEFAULT_LEVEL = "info"
+QUIET_LOGGERS = ("httpx", "httpcore")
 
 
 def configure_logging(level: str | None = None) -> None:
@@ -16,3 +17,5 @@ def configure_logging(level: str | None = None) -> None:
         format=LOG_FORMAT,
         force=True,
     )
+    for name in QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)

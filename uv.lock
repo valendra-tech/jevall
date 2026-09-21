@@ -314,6 +314,7 @@ dev = [
     { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "tqdm" },
 ]
 qwen = [
     { name = "av" },
@@ -321,6 +322,7 @@ qwen = [
     { name = "pillow" },
     { name = "torch" },
     { name = "torchvision" },
+    { name = "tqdm" },
     { name = "transformers" },
 ]
 
@@ -336,6 +338,8 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6,<1" },
     { name = "torch", marker = "extra == 'qwen'", specifier = "==2.8.0" },
     { name = "torchvision", marker = "extra == 'qwen'", specifier = "==0.23.0" },
+    { name = "tqdm", marker = "extra == 'dev'", specifier = ">=4.66,<5" },
+    { name = "tqdm", marker = "extra == 'qwen'", specifier = ">=4.66,<5" },
     { name = "transformers", marker = "extra == 'qwen'", specifier = "==5.5.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1" },
 ]

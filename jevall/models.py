@@ -8,6 +8,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from tqdm.auto import tqdm
+
 from jevall.core import BackendUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -27,65 +29,63 @@ def _human_bytes(value: float) -> str:
     return f"{size:.1f}TB"
 
 
-class LogProgressBar:
-    """Progress reporter that logs throttled single lines instead of bars."""
+class LogProgressBar(tqdm):
+    """Progress reporter that logs throttled lines instead of drawing a bar.
 
-    def __init__(
-        self,
-        *,
-        total: float | None = None,
-        desc: str | None = None,
-        disable: bool = False,
-        **_: Any,
-    ) -> None:
-        self.total = total
-        self.desc = desc or "files"
-        self.n = 0.0
-        self.disable = disable
-        self._started = time.monotonic()
-        self._last_log = self._started
+    huggingface_hub subclasses the configured `tqdm_class`, so this must keep
+    the full tqdm interface and only replace how progress is rendered.
+    """
 
-    def update(self, n: float = 1) -> None:
-        self.n += n
-        self.display()
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("disable", False)
+        self._last_log = time.monotonic()
+        self._last_n: float | None = None
+        super().__init__(*args, **kwargs)
 
-    def display(self, force: bool = False) -> None:
-        if self.disable:
+    def display(self, msg: str | None = None, pos: int | None = None) -> None:
+        del msg, pos
+        self._log()
+
+    def close(self) -> None:
+        self._log(force=True)
+        super().close()
+
+    def _log(self, force: bool = False) -> None:
+        if getattr(self, "disable", False):
             return
         now = time.monotonic()
-        if not force and now - self._last_log < PROGRESS_INTERVAL_SECONDS:
+        total = getattr(self, "total", None)
+        current = float(getattr(self, "n", 0) or 0)
+        if self._last_n == current:
             return
-        if not force and self.total and self.n >= self.total:
-            force = True
+        finished = bool(total) and current >= float(total)
+        if (
+            not force
+            and not finished
+            and now - self._last_log < PROGRESS_INTERVAL_SECONDS
+        ):
+            return
         self._last_log = now
-        elapsed = max(now - self._started, 1e-6)
-        speed = self.n / elapsed
-        if self.total:
+        self._last_n = current
+        started = getattr(self, "_start_t", self._last_log)
+        elapsed = max(now - started, 1e-6)
+        speed = current / elapsed
+        if total:
             logger.info(
                 "download %s: %s/%s (%.0f%%) %.1fMB/s",
-                self.desc,
-                _human_bytes(self.n),
-                _human_bytes(self.total),
-                100.0 * self.n / self.total,
+                self.desc or "files",
+                _human_bytes(current),
+                _human_bytes(float(total)),
+                100.0 * current / float(total),
                 speed / (1024 * 1024),
             )
         else:
             logger.info(
                 "download %s: %s %.1fMB/s",
-                self.desc,
-                _human_bytes(self.n),
+                self.desc or "files",
+                _human_bytes(current),
                 speed / (1024 * 1024),
             )
-
-    def close(self) -> None:
-        self.display(force=True)
-
-    def __enter__(self) -> LogProgressBar:
-        return self
-
-    def __exit__(self, *_: Any) -> bool:
-        self.close()
-        return False
 
 
 def ensure_model(
@@ -118,6 +118,7 @@ def ensure_model(
             tqdm_class=LogProgressBar,
         )
     except Exception as error:
+        logger.exception("model.fetch failed id=%s", model_id)
         raise BackendUnavailableError(f"could not fetch model {model_id!r}") from error
     logger.info(
         "model.ready id=%s path=%s elapsed=%.1fs",

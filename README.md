@@ -198,6 +198,47 @@ The core preserves media parts and delegates their interpretation to the
 selected adapter. The first Qwen adapter will use Qwen's native multimodal
 processor rather than a gateway-owned frame extraction pipeline.
 
+## Docker
+
+Images are published to GHCR by `.github/workflows/ghcr.yaml` for two CUDA
+majors:
+
+| Variant  | Base image                                | Torch              |
+| -------- | ----------------------------------------- | ------------------ |
+| `cuda12` | `nvidia/cuda:12.8.1-runtime-ubuntu24.04`  | `2.8.0+cu128` (lock) |
+| `cuda13` | `nvidia/cuda:13.0.3-runtime-ubuntu24.04`  | `2.9.1+cu130`      |
+
+The `cuda13` image replaces the locked `torch`/`torchvision` wheels with the
+CUDA 13 builds from the PyTorch index, because the lock pins the CUDA 12 wheel.
+
+Build locally:
+
+```bash
+docker build -t jevall:cuda12 .
+
+docker build -t jevall:cuda13 \
+  --build-arg CUDA_VERSION=13.0.3 \
+  --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu130 \
+  --build-arg TORCH_SPEC="torch==2.9.1+cu130 torchvision==0.24.1+cu130" .
+```
+
+Run the deterministic demo adapter (no GPU needed):
+
+```bash
+docker run --rm -p 8000:8000 jevall:cuda12
+```
+
+Run a real model on the GPU:
+
+```bash
+docker run --rm --gpus all -p 8000:8000 -v jevall-models:/models \
+  ghcr.io/valendra-tech/jevall:cuda12 --model Qwen/Qwen3.5-4B
+```
+
+The entrypoint is `serve`, so any `serve` flag can be appended. The model cache
+lives in `/models` (`HF_HOME`); mount a volume to keep it between runs. The
+image runs as root and serves on port 8000.
+
 ## Before Publishing
 
 This first scaffold is not safe to expose to untrusted traffic. Before changing
@@ -205,15 +246,6 @@ the GitHub repository to public, the project needs authentication and resource
 limits, a validated media URI policy that prevents local-file and SSRF access,
 bounded image/video processing, sanitized backend errors, and a dependency and
 license review.
-
-## Design
-
-The approved design and implementation plan are in:
-
-- `docs/superpowers/specs/2026-09-21-jev-gate-design.md`
-- `docs/superpowers/plans/2026-09-21-jev-gate-initial-repository.md`
-
-These documents are historical records of the original `jev-gate` build.
 
 ## License
 

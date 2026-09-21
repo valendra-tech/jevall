@@ -33,6 +33,7 @@ qwen = [
 
 [project.scripts]
 jev-gate = "jev_gate.__main__:main"
+serve = "jev_gate.cli:serve"
 
 [tool.hatch.build.targets.wheel]
 packages = ["jev_gate"]

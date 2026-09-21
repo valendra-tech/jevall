@@ -50,24 +50,32 @@ Install the Qwen runtime only on a compatible GPU host:
 uv sync --extra dev --extra qwen
 ```
 
-Start the local server:
+Start the server with a model:
 
 ```bash
-uv run uvicorn jev_gate.server:app --reload
+uv run serve --model org/model
 ```
 
-Or use the installed command:
+`serve` binds `0.0.0.0:8000` by default. Override with `--host` and `--port`,
+and select the torch device with `--device`:
+
+```bash
+uv run serve --model Qwen/Qwen3.5-4B --device cuda --host 127.0.0.1 --port 8000
+```
+
+Without `--model` it uses `JEV_GATE_MODEL`, and with neither it serves the
+deterministic demo adapter. The env-var form still works:
+
+```bash
+JEV_GATE_MODEL=Qwen/Qwen3.5-4B \
+JEV_GATE_DEVICE=cuda \
+uv run uvicorn jev_gate.server:app --host 0.0.0.0 --port 8000
+```
+
+Or use the installed legacy command:
 
 ```bash
 uv run jev-gate
-```
-
-To start with Qwen 3.5 9B instead of the demo adapter:
-
-```bash
-JEV_GATE_MODEL=Qwen/Qwen3.5-9B \
-JEV_GATE_DEVICE=cuda \
-uv run uvicorn jev_gate.server:app --host 127.0.0.1 --port 8000
 ```
 
 ## Micro-batching

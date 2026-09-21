@@ -1,4 +1,4 @@
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -206,6 +206,24 @@ class FakeTorch:
         return SimpleNamespace(item=lambda: tensor.data.index(max(tensor.data)))
 
 
+class GuardedTorch(FakeTorch):
+    active = False
+
+    @classmethod
+    @contextmanager
+    def inference_mode(cls):
+        cls.active = True
+        try:
+            yield
+        finally:
+            cls.active = False
+
+    @classmethod
+    def matmul(cls, left, right):
+        assert cls.active, "Qwen scoring must stay inside inference_mode"
+        return left @ right
+
+
 class FakeBatch(dict):
     def to(self, device):
         assert device == "cpu"
@@ -297,9 +315,33 @@ def test_qwen_decide_disables_thinking_and_uses_last_unpadded_token(monkeypatch)
     assert len(adapter.model.model.calls) == 1
     assert adapter.model.model.calls[0]["pixel_values"] is processor.pixel_values
     assert all(
-        call["chat_template_kwargs"] == {"enable_thinking": False}
+        call["processor_kwargs"] == {"enable_thinking": False}
         for call in processor.calls
     )
+
+
+def test_qwen_decide_scores_inside_inference_mode(monkeypatch):
+    processor = RecordingProcessor()
+    adapter = Qwen35Adapter(
+        model_id="Qwen/Qwen3.5-9B",
+        device="cpu",
+        model=RecordingModel(),
+        processor=processor,
+    )
+    monkeypatch.setattr(qwen35, "_load_torch", lambda: GuardedTorch)
+    base = request()
+    two_questions = base.model_copy(
+        update={
+            "questions": (
+                base.questions[0],
+                base.questions[0].model_copy(update={"id": "team-2"}),
+            )
+        }
+    )
+
+    results = adapter.decide(two_questions)
+
+    assert results[0].selected == "technical"
 
 
 def test_qwen_decide_maps_invalid_backbone_output_to_backend_unavailable(monkeypatch):

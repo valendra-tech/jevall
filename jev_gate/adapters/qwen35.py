@@ -226,12 +226,12 @@ class Qwen35Adapter:
             for question in request.questions
         ]
         try:
-            chat_template_kwargs = {"enable_thinking": False}
+            processor_kwargs = {"enable_thinking": False}
             rendered_prompts = self.processor.apply_chat_template(
                 conversations,
                 add_generation_prompt=True,
                 tokenize=False,
-                chat_template_kwargs=chat_template_kwargs,
+                processor_kwargs=processor_kwargs,
             )
             if isinstance(rendered_prompts, str):
                 rendered_prompts = [rendered_prompts]
@@ -242,7 +242,7 @@ class Qwen35Adapter:
                 return_dict=True,
                 return_tensors="pt",
                 padding=True,
-                chat_template_kwargs=chat_template_kwargs,
+                processor_kwargs=processor_kwargs,
             )
             inputs = self._move_inputs(inputs)
             attention_mask = inputs["attention_mask"]
@@ -305,13 +305,14 @@ class Qwen35Adapter:
                 selected_hidden = hidden[row, last_positions[row]]
                 if selected_hidden.dtype != candidate_rows.dtype:
                     selected_hidden = selected_hidden.to(dtype=candidate_rows.dtype)
-                candidate_logits = torch.matmul(
-                    candidate_rows,
-                    selected_hidden,
-                ).float()
-                probabilities = torch.softmax(candidate_logits.float(), dim=-1)
-                selected_index = int(torch.argmax(probabilities).item())
-                probability_values = probabilities.detach().cpu().tolist()
+                with torch.inference_mode():
+                    candidate_logits = torch.matmul(
+                        candidate_rows,
+                        selected_hidden,
+                    ).float()
+                    probabilities = torch.softmax(candidate_logits.float(), dim=-1)
+                    selected_index = int(torch.argmax(probabilities).item())
+                    probability_values = probabilities.detach().cpu().tolist()
                 probability_map = {
                     key: float(value) for key, value in zip(keys, probability_values)
                 }

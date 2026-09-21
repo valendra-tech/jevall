@@ -97,6 +97,21 @@ The delay is measured from the previous move, so real latency is never hidden.
 ## State sent to the model
 
 Generated every turn from the live board; no future information is included.
+The default is the ASCII board below. The `Send board as image` toggle replaces
+the ASCII grid with a PNG of the board (drawn with an offscreen canvas and sent
+as a `data:` URI), keeping the rules, legend and coordinates as text.
+
+Measured on six hand-built positions with the same question (safe-move picks,
+scored against the game rules):
+
+| State | Safe picks |
+| ----- | ---------- |
+| ASCII board (default) | 3/6 |
+| Board image | 5/6 |
+
+The image costs about 20 ms of extra forward time (67 ms vs 47 ms p50 total on
+the public endpoint). Mixing both the ASCII board and the image scores worse
+than the image alone, so the toggle replaces the board instead of adding it.
 
 ```
 SNAKE GAME
@@ -139,6 +154,29 @@ Food: (7,2)
 
 Choose the best next movement.
 ```
+
+## Known model behaviour
+
+With `Qwen/Qwen3.5-4B` the demo shows a real failure mode: on a mid-edge the
+model is close to a coin flip between continuing into the wall and turning, and
+with the ASCII board it often continues until it dies. Verified with direct API
+probes:
+
+- Plain-language control ("the head is at the right edge, the food is above"):
+  correct at 0.93. The pipeline is not the problem.
+- Corner positions where only one move is safe: correct (0.67 / 0.75).
+- Mid-edge wall: `right` 0.50 vs `up` 0.44 with the ASCII board, and the same
+  direction gets 0.50 when it is option C but 0.04 when it is option A, which
+  shows a strong option-position bias.
+- Row/column indices, a bordered board, a "check each option" instruction, a
+  shorter preamble, removing the current-direction line, and board sizes from
+  6x6 to 12x12 do not fix it.
+- Sending the board as an image changes the behaviour: the model turns and
+  survives longer (a live run went ten moves, turning up, instead of six moves
+  straight into the right wall).
+
+A larger model should judge the edge better; nothing in the demo corrects or
+filters the model's choice either way.
 
 ## API contract
 

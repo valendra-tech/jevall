@@ -23,9 +23,11 @@ export default function Page() {
     debug,
     showProbabilities,
     showHeatmap,
+    vision,
     setSpeed,
     setShowProbabilities,
     setShowHeatmap,
+    setVision,
     switchMode,
     start,
     pause,
@@ -66,6 +68,7 @@ export default function Page() {
           thinking={thinking}
           showProbabilities={showProbabilities}
           showCandidates={showHeatmap}
+          vision={vision}
           hasHistory={history.length > 0}
           onModeChange={switchMode}
           onSpeedChange={setSpeed}
@@ -75,6 +78,7 @@ export default function Page() {
           onRestart={restart}
           onToggleProbabilities={setShowProbabilities}
           onToggleCandidates={setShowHeatmap}
+          onToggleVision={setVision}
           onExport={() => downloadRun(game, history)}
         />
       </div>

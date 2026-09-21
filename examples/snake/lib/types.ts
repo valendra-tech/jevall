@@ -12,9 +12,13 @@ export type TurnOutcome = "moved" | "ate" | "wall" | "self" | "board-full";
 
 export type DecisionOption = { id: Direction; text: string };
 
+export type StatePart =
+  | { type: "text"; text: string }
+  | { type: "image"; uri: string };
+
 export type DecisionPayload = {
   model: string;
-  state: string;
+  state: string | StatePart[];
   questions: Array<{
     id: "move";
     type: "choice";
@@ -47,6 +51,7 @@ export type TurnDiagnostics = {
 export type HistoryEntry = {
   turn: number;
   stateText: string;
+  usedImage: boolean;
   options: DecisionOption[];
   rawResponse: DecisionResponse | null;
   selected: Direction;

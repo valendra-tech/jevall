@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { isValidDecisionPayload } from "@/lib/payload";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -23,25 +25,6 @@ function upstreamTimeoutMs(): number {
     : DEFAULT_TIMEOUT_MS;
 }
 
-function isDecisionPayload(value: unknown): value is {
-  model: string;
-  state: string;
-  questions: unknown[];
-} {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.model === "string" &&
-    candidate.model.length > 0 &&
-    typeof candidate.state === "string" &&
-    candidate.state.length > 0 &&
-    Array.isArray(candidate.questions) &&
-    candidate.questions.length > 0
-  );
-}
-
 export async function POST(request: Request) {
   let payload: unknown;
   try {
@@ -50,7 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  if (!isDecisionPayload(payload)) {
+  if (!isValidDecisionPayload(payload)) {
     return NextResponse.json(
       { error: "model, state and questions are required" },
       { status: 400 },

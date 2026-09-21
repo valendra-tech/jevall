@@ -24,10 +24,17 @@ export function formatPoint(point: { x: number; y: number }): string {
   return `(${point.x},${point.y})`;
 }
 
-export function buildStateText(state: GameState): string {
+export type StateTextOptions = {
+  includeBoard?: boolean;
+};
+
+export function buildStateText(
+  state: GameState,
+  options: StateTextOptions = {},
+): string {
+  const includeBoard = options.includeBoard ?? true;
   const head = state.snake[0];
   const body = state.snake.slice(1);
-  const board = renderBoard(state);
 
   return [
     "SNAKE GAME",
@@ -55,10 +62,9 @@ export function buildStateText(state: GameState): string {
     "S = snake body",
     "F = food",
     "",
-    "Board:",
-    "",
-    board,
-    "",
+    ...(includeBoard
+      ? ["Board:", "", renderBoard(state), ""]
+      : ["The board is attached as an image.", ""]),
     `Snake head: ${formatPoint(head)}`,
     `Snake body: [${body.map(formatPoint).join(",")}]`,
     `Food: ${formatPoint(state.food)}`,

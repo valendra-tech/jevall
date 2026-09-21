@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DecisionApiError, requestDecision, type DecisionOutcome } from "@/lib/api";
+import { buildStateParts, renderBoardPng, statePartsLabel } from "@/lib/boardImage";
 import { MODEL_ID } from "@/lib/export";
 import { createGame, isFatal, step, type GameState } from "@/lib/game";
 import { buildOptions, isOffered, MOVE_PROMPT } from "@/lib/options";
 import { createSingleFlight } from "@/lib/singleFlight";
-import { buildStateText, renderBoard } from "@/lib/stateText";
+import { renderBoard } from "@/lib/stateText";
 import type {
   DecisionOption,
   Direction,
@@ -15,6 +16,7 @@ import type {
   Mode,
   Phase,
   Speed,
+  StatePart,
 } from "@/lib/types";
 
 export const BOARD_SIZE = 12;
@@ -35,6 +37,7 @@ const KEY_DIRECTIONS: Record<string, Direction> = {
 
 export type DebugTurn = {
   stateText: string;
+  imageDataUri: string | null;
   options: DecisionOption[];
   rawResponse: unknown;
 } | null;
@@ -54,24 +57,30 @@ export function useSnakeGame() {
   const [debug, setDebug] = useState<DebugTurn>(null);
   const [showProbabilities, setShowProbabilities] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [vision, setVision] = useState(false);
 
   const gameRef = useRef(game);
   gameRef.current = game;
   const lastMoveAt = useRef(0);
   const humanQueue = useRef<Direction | null>(null);
+  const lastImage = useRef<string | null>(null);
+  const visionRef = useRef(vision);
+  visionRef.current = vision;
 
   // Every decision goes through a single-flight wrapper: two API calls can
   // never overlap, even if a future refactor forgets to await.
   const decide = useMemo(
-    () => createSingleFlight((stateText: string, options: DecisionOption[]) =>
-      requestDecision({
-        model: MODEL_ID,
-        state: stateText,
-        questions: [
-          { id: "move", type: "choice", prompt: MOVE_PROMPT, options },
-        ],
-      }),
-    ),
+    () =>
+      createSingleFlight(
+        (state: string | StatePart[], options: DecisionOption[]) =>
+          requestDecision({
+            model: MODEL_ID,
+            state,
+            questions: [
+              { id: "move", type: "choice", prompt: MOVE_PROMPT, options },
+            ],
+          }),
+      ),
     [],
   );
 
@@ -81,12 +90,14 @@ export function useSnakeGame() {
       outcome: DecisionOutcome,
       stateText: string,
       options: DecisionOption[],
+      usedImage: boolean,
     ) => {
       const boardBefore = renderBoard(current);
       const next = step(current, outcome.selected);
       const entry: HistoryEntry = {
         turn: current.moves + 1,
         stateText,
+        usedImage,
         options,
         rawResponse: outcome.response,
         selected: outcome.selected,
@@ -102,7 +113,12 @@ export function useSnakeGame() {
 
       lastMoveAt.current = performance.now();
       setHistory((entries) => [...entries, entry].slice(-HISTORY_LIMIT));
-      setDebug({ stateText, options, rawResponse: outcome.response });
+      setDebug({
+        stateText,
+        imageDataUri: usedImage ? lastImage.current : null,
+        options,
+        rawResponse: outcome.response,
+      });
       // The loop reads gameRef synchronously, so it must not wait for a render.
       gameRef.current = next;
       setGame(next);
@@ -138,11 +154,19 @@ export function useSnakeGame() {
           return;
         }
 
-        const stateText = buildStateText(current);
         const options = buildOptions(current);
+        const imageDataUri = visionRef.current ? renderBoardPng(current) : null;
+        lastImage.current = imageDataUri;
+        const state = buildStateParts(current, {
+          vision: visionRef.current,
+          imageDataUri,
+        });
+        const stateText = statePartsLabel(current, {
+          vision: visionRef.current,
+        });
         setThinking(true);
         try {
-          const outcome = await decide(stateText, options);
+          const outcome = await decide(state, options);
           if (cancelled) {
             return;
           }
@@ -152,7 +176,13 @@ export function useSnakeGame() {
               "invalid",
             );
           }
-          applyDecision(current, outcome, stateText, options);
+          applyDecision(
+            current,
+            outcome,
+            stateText,
+            options,
+            Boolean(imageDataUri),
+          );
         } catch (caught) {
           if (cancelled) {
             return;
@@ -272,9 +302,11 @@ export function useSnakeGame() {
     debug,
     showProbabilities,
     showHeatmap,
+    vision,
     setSpeed,
     setShowProbabilities,
     setShowHeatmap,
+    setVision,
     switchMode,
     start,
     pause,

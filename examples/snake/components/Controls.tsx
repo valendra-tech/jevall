@@ -9,6 +9,7 @@ type ControlsProps = {
   thinking: boolean;
   showProbabilities: boolean;
   showCandidates: boolean;
+  vision: boolean;
   hasHistory: boolean;
   onModeChange: (mode: Mode) => void;
   onSpeedChange: (speed: Speed) => void;
@@ -18,6 +19,7 @@ type ControlsProps = {
   onRestart: () => void;
   onToggleProbabilities: (value: boolean) => void;
   onToggleCandidates: (value: boolean) => void;
+  onToggleVision: (value: boolean) => void;
   onExport: () => void;
 };
 
@@ -36,6 +38,7 @@ export function Controls({
   thinking,
   showProbabilities,
   showCandidates,
+  vision,
   hasHistory,
   onModeChange,
   onSpeedChange,
@@ -45,6 +48,7 @@ export function Controls({
   onRestart,
   onToggleProbabilities,
   onToggleCandidates,
+  onToggleVision,
   onExport,
 }: ControlsProps) {
   const live = phase === "running" || phase === "thinking";
@@ -134,6 +138,15 @@ export function Controls({
             className="h-3.5 w-3.5 accent-sky-500"
           />
           Candidate cells
+        </label>
+        <label className="flex items-center gap-2" title="Send the board as a PNG image instead of ASCII art (native vision)">
+          <input
+            type="checkbox"
+            checked={vision}
+            onChange={(event) => onToggleVision(event.target.checked)}
+            className="h-3.5 w-3.5 accent-emerald-500"
+          />
+          Send board as image
         </label>
       </div>
 

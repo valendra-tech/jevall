@@ -8,6 +8,7 @@ import type { HistoryEntry } from "@/lib/types";
 function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
   return {
     turn: 1,
+    usedImage: false,
     stateText: "state",
     options: [{ id: "up", text: "Move up" }],
     rawResponse: null,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from jev_gate.adapters.base import AdapterBatch
 from jev_gate.schemas import (
     ChoiceQuestion,
     DecisionRequest,
@@ -63,3 +64,15 @@ class DemoAdapter:
             else:
                 raise TypeError(f"unsupported question type: {type(question).__name__}")
         return results
+
+    def decide_batch(
+        self,
+        requests: tuple[DecisionRequest, ...],
+    ) -> AdapterBatch:
+        decisions = tuple(tuple(self.decide(request)) for request in requests)
+        return AdapterBatch(
+            decisions=decisions,
+            rows=sum(len(request.questions) for request in requests),
+            forward_ms=0.0,
+            scoring_ms=0.0,
+        )

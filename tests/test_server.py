@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import httpx
 
@@ -28,7 +29,7 @@ def test_health_reports_ok():
     response = request("GET", "/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "model": "demo", "ready": True}
 
 
 def test_models_lists_adapter_capabilities():
@@ -258,3 +259,40 @@ def test_batched_endpoint_maps_timeouts_to_service_unavailable():
     )
 
     assert response.status_code == 503
+
+
+def test_health_reports_device_and_dtype_when_available():
+    class GpuDemoAdapter(DemoAdapter):
+        device = "cuda"
+        dtype = "bfloat16"
+
+    app_instance = create_app(DecisionEngine((GpuDemoAdapter(),)))
+
+    response = asyncio.run(send(app_instance, "GET", "/health"))
+
+    assert response.json() == {
+        "status": "ok",
+        "model": "demo",
+        "device": "cuda",
+        "dtype": "bfloat16",
+        "ready": True,
+    }
+
+
+def test_decisions_logs_a_summary_line(caplog):
+    app_instance = batched_app(MicroBatcher(window_ms=10, max_rows=8))
+
+    with caplog.at_level(logging.INFO, logger="jevall.server"):
+        asyncio.run(
+            send(app_instance, "POST", "/v1/decisions", json=batched_payload())
+        )
+
+    lines = [
+        line
+        for line in caplog.text.splitlines()
+        if "decision id=dec_" in line
+    ]
+    assert len(lines) == 1
+    assert "model=demo" in lines[0]
+    assert "questions=1" in lines[0]
+    assert "selected=['technical']" in lines[0]

@@ -61,14 +61,26 @@ uv run serve --model org/model
 ```
 
 `serve` binds `0.0.0.0:8000` by default. Override with `--host` and `--port`,
-and select the torch device with `--device`:
+pick the device with `--device` and the dtype with `--dtype`:
 
 ```bash
-uv run serve --model Qwen/Qwen3.5-4B --device cuda --host 127.0.0.1 --port 8000
+uv run serve --model Qwen/Qwen3.5-4B --device cuda --dtype bfloat16 --port 8000
 ```
+
+`--device auto` (the default) resolves to `cuda`, then `mps`, then `cpu`, and
+`--dtype auto` follows the device (`bfloat16`, `float16`, `float32`). Explicit
+`--device cuda` fails fast when CUDA is unavailable.
 
 Without `--model` it uses `JEVALL_MODEL`, and with neither it serves the
 deterministic demo adapter.
+
+### Model provisioning
+
+The server downloads the checkpoint on first start, with throttled progress
+lines such as `download model.safetensors: 2.1GB/4.7GB (45%) 38.0MB/s`, and
+loads it from the local snapshot afterwards. Set `JEVALL_OFFLINE=1` on hosts
+without network access to skip downloading and fail with a clear message when
+the model is missing.
 
 On a GPU host, sync the Qwen extra first, or keep the environment untouched with
 `--no-sync` when the extra is already installed:
@@ -85,7 +97,7 @@ The env-var form still works:
 
 ```bash
 JEVALL_MODEL=Qwen/Qwen3.5-4B \
-JEVALL_DEVICE=cuda \
+JEVALL_DEVICE=auto \
 uv run uvicorn jevall.server:app --host 0.0.0.0 --port 8000
 ```
 
@@ -94,6 +106,19 @@ Or use the installed legacy command:
 ```bash
 uv run jevall
 ```
+
+## Logs
+
+`serve` configures a single log format for the app and Uvicorn, at
+`--log-level` / `JEVALL_LOG_LEVEL` (`info` by default). Startup logs cover model
+fetch, load, warmup, batcher settings and the listening address; each decision
+logs one line:
+
+```
+decision id=dec_… model=Qwen/Qwen3.5-4B questions=2 batch_rows=4 queue_ms=8.1 forward_ms=64.4 scoring_ms=0.7 total_ms=74.2 selected=['dhl', 'madrid']
+```
+
+`GET /health` reports `status`, `model`, `device`, `dtype` and `ready`.
 
 ## Micro-batching
 

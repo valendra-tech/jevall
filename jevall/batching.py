@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -13,9 +14,16 @@ from jevall.adapters.base import DecisionAdapter
 from jevall.core import BackendUnavailableError
 from jevall.schemas import DecisionRequest, DecisionResult
 
+logger = logging.getLogger(__name__)
+
 
 class RequestTimeoutError(BackendUnavailableError):
     """Raised when a queued request exceeds its deadline."""
+
+
+def _adapter_label(adapter: DecisionAdapter) -> str:
+    model_info = getattr(adapter, "model_info", None)
+    return str(getattr(model_info, "backend", type(adapter).__name__))
 
 
 @dataclass(frozen=True)
@@ -87,6 +95,13 @@ class MicroBatcher:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, work, *args)
 
+    def close(self) -> None:
+        """Stop the worker and release the GPU thread."""
+        if self._worker is not None and not self._worker.done():
+            self._worker.cancel()
+        self._worker = None
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
     def _ensure_worker(self) -> None:
         if self._worker is None or self._worker.done():
             self._worker = asyncio.get_running_loop().create_task(self._run())
@@ -94,7 +109,17 @@ class MicroBatcher:
     async def _run(self) -> None:
         while True:
             batch, rows = await self._collect()
-            await self._dispatch(batch, rows)
+            try:
+                await self._dispatch(batch, rows)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                logger.exception("batcher dispatch failed")
+                for job in batch:
+                    if not job.future.done():
+                        job.future.set_exception(
+                            BackendUnavailableError(str(error))
+                        )
 
     async def _collect(self) -> tuple[list[_Job], int]:
         batch: list[_Job] = []
@@ -144,6 +169,12 @@ class MicroBatcher:
         loop = asyncio.get_running_loop()
         adapter = live[0].adapter
         requests = tuple(job.request for job in live)
+        logger.debug(
+            "batch dispatch rows=%d requests=%d adapter=%s",
+            rows,
+            len(live),
+            _adapter_label(adapter),
+        )
         try:
             result = await loop.run_in_executor(
                 self._executor,
@@ -151,8 +182,19 @@ class MicroBatcher:
                 requests,
             )
         except Exception:
+            logger.warning(
+                "batch failed, retrying %d request(s) individually",
+                len(live),
+                exc_info=True,
+            )
             await self._dispatch_individually(live, started)
             return
+        logger.debug(
+            "batch done rows=%d forward_ms=%.1f scoring_ms=%.1f",
+            result.rows,
+            result.forward_ms,
+            result.scoring_ms,
+        )
         for index, job in enumerate(live):
             job.future.set_result(
                 self._outcome(

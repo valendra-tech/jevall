@@ -195,3 +195,11 @@ def test_batcher_run_exclusive_serializes_with_batches():
     assert result == "done"
     assert observed == [0]
     assert outcome.decisions[0].id == "team"
+
+
+def test_batcher_close_stops_accepting_work():
+    batcher = MicroBatcher()
+    batcher.close()
+
+    with pytest.raises(BackendUnavailableError):
+        asyncio.run(batcher.submit(RecordingAdapter(), request("team")))

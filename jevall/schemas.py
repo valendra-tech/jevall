@@ -191,3 +191,7 @@ class ModelListResponse(ContractModel):
 
 class HealthResponse(ContractModel):
     status: Literal["ok"]
+    model: str | None = None
+    device: str | None = None
+    dtype: str | None = None
+    ready: bool | None = None

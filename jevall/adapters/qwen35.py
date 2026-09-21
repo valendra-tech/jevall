@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from time import perf_counter
 from typing import Any
@@ -9,6 +10,8 @@ from urllib.parse import unquote, urlparse
 
 from jevall.adapters.base import AdapterBatch
 from jevall.core import BackendUnavailableError
+from jevall.devices import resolve_device, resolve_dtype
+from jevall.models import ensure_model
 from jevall.schemas import (
     ChoiceQuestion,
     DecisionRequest,
@@ -52,6 +55,9 @@ def _warmup_request(question_count: int) -> DecisionRequest:
             for index in range(question_count)
         ),
     )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _load_torch():
@@ -157,8 +163,8 @@ def resolve_label_token_ids(
     return tuple(token_ids)
 
 
-def load_qwen35(model_id: str, device: str):
-    """Load a Qwen 3.5 multimodal checkpoint lazily."""
+def load_qwen35(model_id: str, device: str, dtype: str = "auto"):
+    """Fetch and load a Qwen 3.5 multimodal checkpoint."""
     torch = _load_torch()
     try:
         import transformers
@@ -177,18 +183,36 @@ def load_qwen35(model_id: str, device: str):
             "installed Transformers does not expose a Qwen 3.5 multimodal model"
         )
 
+    torch_dtype = getattr(torch, resolve_dtype(dtype, device))
+    local_path = ensure_model(model_id)
+    logger.info(
+        "model.load id=%s device=%s dtype=%s path=%s",
+        model_id,
+        device,
+        torch_dtype,
+        local_path,
+    )
+    started = perf_counter()
     try:
-        processor = auto_processor.from_pretrained(model_id)
+        processor = auto_processor.from_pretrained(local_path)
         model = model_class.from_pretrained(
-            model_id,
-            torch_dtype=torch.bfloat16,
+            local_path,
+            torch_dtype=torch_dtype,
             attn_implementation="sdpa",
         ).to(device)
         model.eval()
     except Exception as error:
+        logger.exception("model.load failed id=%s device=%s", model_id, device)
         raise BackendUnavailableError(
             f"could not load Qwen model {model_id!r} on {device!r}"
         ) from error
+    logger.info(
+        "model.loaded id=%s device=%s dtype=%s elapsed=%.1fs",
+        model_id,
+        device,
+        torch_dtype,
+        perf_counter() - started,
+    )
     return model, processor
 
 
@@ -198,17 +222,21 @@ class Qwen35Adapter:
     def __init__(
         self,
         model_id: str = "Qwen/Qwen3.5-9B",
-        device: str = "cuda",
+        device: str = "auto",
         *,
+        dtype: str = "auto",
         model: Any | None = None,
         processor: Any | None = None,
     ) -> None:
         if (model is None) != (processor is None):
             raise ValueError("model and processor must be provided together")
         if model is None:
-            model, processor = load_qwen35(model_id, device)
+            device = resolve_device(device)
+            dtype = resolve_dtype(dtype, device)
+            model, processor = load_qwen35(model_id, device, dtype)
         self.model_id = model_id
         self.device = device
+        self.dtype = dtype
         self.model = model
         self.processor = processor
         self.tokenizer = getattr(processor, "tokenizer", processor)

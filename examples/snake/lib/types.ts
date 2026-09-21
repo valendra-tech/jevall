@@ -1,0 +1,73 @@
+export type Direction = "up" | "down" | "left" | "right";
+
+export type Point = { x: number; y: number };
+
+export type Speed = "slow" | "normal" | "fast";
+
+export type Mode = "ai" | "human";
+
+export type Phase = "idle" | "running" | "thinking" | "paused" | "over";
+
+export type TurnOutcome = "moved" | "ate" | "wall" | "self" | "board-full";
+
+export type DecisionOption = { id: Direction; text: string };
+
+export type DecisionPayload = {
+  model: string;
+  state: string;
+  questions: Array<{
+    id: "move";
+    type: "choice";
+    prompt: string;
+    options: DecisionOption[];
+  }>;
+};
+
+export type DecisionResult = {
+  id: string;
+  type: string;
+  selected: Direction;
+  probabilities: Record<string, number>;
+};
+
+export type DecisionResponse = {
+  id: string;
+  model: string;
+  decisions: DecisionResult[];
+  usage?: { latency_ms?: number };
+  diagnostics?: Record<string, unknown>;
+};
+
+export type TurnDiagnostics = {
+  queueMs: number | null;
+  forwardMs: number | null;
+  scoringMs: number | null;
+};
+
+export type HistoryEntry = {
+  turn: number;
+  stateText: string;
+  options: DecisionOption[];
+  rawResponse: DecisionResponse | null;
+  selected: Direction;
+  probabilities: Record<string, number>;
+  selectedProbability: number | null;
+  latencyMs: number;
+  diagnostics: TurnDiagnostics;
+  outcome: TurnOutcome;
+  boardBefore: string;
+  boardAfter: string;
+};
+
+export type RunExport = {
+  model: string;
+  boardSize: number;
+  score: number;
+  moves: number;
+  survived: number;
+  snakeLength: number;
+  cause: TurnOutcome | null;
+  averageLatencyMs: number | null;
+  averageSelectedProbability: number | null;
+  history: HistoryEntry[];
+};

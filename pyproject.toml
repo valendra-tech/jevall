@@ -40,6 +40,17 @@ serve = "jevall.cli:serve"
 [tool.hatch.build.targets.wheel]
 packages = ["jevall"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/dist",
+    "/examples",
+    "/examples/**",
+    "/.venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.next",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

@@ -10,4 +10,3 @@ tests
 **/*.pyc
 *.log
 .DS_Store
-examples

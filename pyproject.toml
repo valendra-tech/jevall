@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jevall"
+version = "0.1.0"
+description = "Typed-decision inference gateway for multimodal models"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Valendra Tech" }]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2.9,<3",
+    "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.27,<1",
+    "pytest>=8.3,<9",
+    "ruff>=0.6,<1",
+    "tqdm>=4.66,<5",
+]
+qwen = [
+    "av>=15,<16",
+    "flash-linear-attention>=0.5,<1",
+    "pillow>=10,<12",
+    "torch==2.8.0",
+    "torchvision==0.23.0",
+    "tqdm>=4.66,<5",
+    "transformers==5.5.0",
+]
+
+[project.scripts]
+jevall = "jevall.__main__:main"
+serve = "jevall.cli:serve"
+
+[tool.hatch.build.targets.wheel]
+packages = ["jevall"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/dist",
+    "/.venv",
+    "**/__pycache__",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = ["demo"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

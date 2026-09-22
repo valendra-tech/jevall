@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jevall-snake-demo"
+version = "0.1.0"
+description = "Standalone terminal demo for the JEVALL typed-decision gateway"
+requires-python = ">=3.12"
+dependencies = [
+    "rich>=13.9,<15",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+    "ruff>=0.6,<1",
+]
+
+[project.scripts]
+jevall-snake = "jevall_snake.snake:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["jevall_snake"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
